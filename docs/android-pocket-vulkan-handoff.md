@@ -68,4 +68,3 @@ The SDL2 expression `SDL_TryLockMutex(mutex) == 0` was invalid after migration b
 - Measure dm3/dm4/dm6 frame timings after the lightmap batching and two-frames-in-flight changes. Startup/stability has been validated on the Xiaomi test device, but the in-map FPS gain is not yet measured.
 - Profile world draw-call count, pipeline switches and CPU/GPU frame split before importing broader renderer changes from vkQuake or FTEQW.
 - Compare frametimes at the capped 1920x864 surface against the former native 2712x1220 path, then decide whether a user-selectable render-scale setting is still necessary.
-
