@@ -1,3 +1,14 @@
+# nextQuake — retomada em 2026-10-10
+
+Tiago decidiu concentrar este projeto exclusivamente em Android e iOS. Fonte: E:\Projetos Linux\nextQuake, repositorio tibazera/nextQuake, main. O projeto original permanece preservado.
+
+Base importada integralmente de 52fab4df, incluindo touch/IME e Release Android. Nenhuma mudanca no motor nesta criacao. iOS ainda nao iniciado; requer integracao SDL3/MoltenVK, bootstrap/armazenamento, audio SDL, habilitacao dos controles e build macOS/Xcode.
+
+Identidade Android (org.ezquake.android/nome exibido) e workflows desktop ainda sao herdados. Proximas tarefas: definir identidade mobile e adaptar build/CI ao foco Android/iOS, preservando a versao Android funcional. Nao remover codigo desktop compartilhado mecanicamente.
+
+A validacao Android registrada abaixo refere-se a base original, nao a um build novo desta copia. Historico abaixo tem caminhos e prioridades antigos; esta secao e AGENTS.md prevalecem.
+
+---
 # Continue.md — Android game-data downloader + Vulkan (desktop, worktree irmão)
 
 ## Estado atual para Claude/Codex — 2026-10-09 (leia primeiro)
@@ -178,3 +189,4 @@ Tiago pediu distinguir mira de tiro: toque simples/arrasto livre só mira. Prime
 Tiago reiterou teclado ausente no console inicial em modo auto. Removida desativação incondicional por SDL_HasKeyboard && SDL_HasMouse em IN_TouchFrame: auto passa a seguir eventos físicos/touch, conforme intenção já documentada. Teste com ambos periféricos reportados reproduziu active=false antes e passa após mudança.
 
 Investigação temporária adicional mostrou delay de startup: antes do primeiro HandleEvents touch permanece false; primeiro frame útil aproximadamente9s após início. Depois de completar inicialização, rastreado mode=2/auto=1/want=1/key_dest=console e Android ImeTracker onShown. dumpsys input_method confirmou mInputShown=true, SDLDummyEdit focado com SDLInputConnection. As verificações anteriores de teclado oculto foram feitas cedo demais, ainda durante startup; não eram prova de falha depois do carregamento. Logs IME_TRACE removidos; build/testes finais passaram; APK final reinstalado/relançado. Sem alterar cfg, sem commit/push.
+

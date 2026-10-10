@@ -1,3 +1,14 @@
+# nextQuake — retomada em 2026-10-10
+
+Tiago decidiu concentrar este projeto exclusivamente em Android e iOS. Fonte: E:\Projetos Linux\nextQuake, repositorio tibazera/nextQuake, main. O projeto original permanece preservado.
+
+Base importada integralmente de 52fab4df, incluindo touch/IME e Release Android. Nenhuma mudanca no motor nesta criacao. iOS ainda nao iniciado; requer integracao SDL3/MoltenVK, bootstrap/armazenamento, audio SDL, habilitacao dos controles e build macOS/Xcode.
+
+Identidade Android (org.ezquake.android/nome exibido) e workflows desktop ainda sao herdados. Proximas tarefas: definir identidade mobile e adaptar build/CI ao foco Android/iOS, preservando a versao Android funcional. Nao remover codigo desktop compartilhado mecanicamente.
+
+A validacao Android registrada abaixo refere-se a base original, nao a um build novo desta copia. Historico abaixo tem caminhos e prioridades antigos; esta secao e AGENTS.md prevalecem.
+
+---
 # Android Pocket Vulkan handoff
 
 Branch: `feature/android-pocket-vulkan`
@@ -57,3 +68,4 @@ The SDL2 expression `SDL_TryLockMutex(mutex) == 0` was invalid after migration b
 - Measure dm3/dm4/dm6 frame timings after the lightmap batching and two-frames-in-flight changes. Startup/stability has been validated on the Xiaomi test device, but the in-map FPS gain is not yet measured.
 - Profile world draw-call count, pipeline switches and CPU/GPU frame split before importing broader renderer changes from vkQuake or FTEQW.
 - Compare frametimes at the capped 1920x864 surface against the former native 2712x1220 path, then decide whether a user-selectable render-scale setting is still necessary.
+
