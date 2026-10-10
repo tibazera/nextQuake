@@ -347,6 +347,12 @@ qbool CT_Opt_Player_Mouse_Event(const mouse_state_t *ms)
 
 extern cvar_t in_raw, in_m_smooth, m_rate, in_m_os_parameters;
 const char* in_raw_enum[] = { "off", "on" };
+#ifdef __ANDROID__
+extern cvar_t in_touch, in_touch_scale, in_touch_alpha, in_touch_look_sens;
+extern const char* VID_AndroidResolutionRead(void);
+extern void VID_AndroidResolutionToggle(qbool back);
+const char* in_touch_enum[] = { "off", "on", "auto" };
+#endif
 const char* in_m_os_parameters_enum[] = { "off", "Keep accel settings", "Keep speed settings", "Keep all settings" };
 
 void Menu_Input_Restart(void) { Cbuf_AddText("in_restart\n"); }
@@ -1185,6 +1191,15 @@ setting settbinds_arr[] = {
 	ADDSET_STRING   ("X-axis Sensitivity", m_yaw),
 	ADDSET_STRING   ("Y-axis Sensitivity", m_pitch),
 	ADDSET_NAMED    ("Raw Mouse Input", in_raw, in_raw_enum),
+#ifdef __ANDROID__
+	ADDSET_SEPARATOR("Touch Controls"),
+	ADDSET_BASIC_SECTION(),
+	ADDSET_NAMED    ("Touch Controls", in_touch, in_touch_enum),
+	ADDSET_NUMBER   ("Touch Look Sensitivity", in_touch_look_sens, 0.2, 4, 0.1),
+	ADDSET_NUMBER   ("Touch Opacity", in_touch_alpha, 0.1, 1, 0.05),
+	ADDSET_NUMBER   ("Touch Button Size", in_touch_scale, 0.5, 2, 0.1),
+	ADDSET_ADVANCED_SECTION(),
+#endif
 	ADDSET_BASIC_SECTION(),
 
 	ADDSET_SEPARATOR("Movement"),
@@ -1316,8 +1331,12 @@ setting settsystem_arr[] = {
 	ADDSET_BASIC_SECTION(),
 
 	ADDSET_SEPARATOR("Screen Settings"),
+#ifdef __ANDROID__
+	ADDSET_CUSTOM("Resolution", VID_AndroidResolutionRead, VID_AndroidResolutionToggle, "Render resolution (scaled to the screen); lower = faster."),
+#else
 	ADDSET_BOOL("Use desktop resolution", vid_usedesktopres),
 	ADDSET_CUSTOM("Resolution", ResolutionRead, ResolutionToggle, "Change your screen resolution."),
+#endif
 	ADDSET_BOOL("Vertical Sync", r_swapInterval),
 	ADDSET_ADVANCED_SECTION(),
 	ADDSET_BOOL("Vsync Lag Fix", vid_vsync_lag_fix),

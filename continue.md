@@ -1,53 +1,180 @@
-# Continue.md — Download automático de dados do Quake (Android) + debug do crash no tablet
+# Continue.md — Android game-data downloader + Vulkan (desktop, worktree irmão)
 
-Última atualização: 2026-07-03
+## Estado atual para Claude/Codex — 2026-10-09 (leia primeiro)
 
-## Onde estamos
+Este resumo substitui as experiências intermediárias descritas no histórico abaixo. Fonte de verdade: E:\Projetos Linux\ezquake-source, branch feature/android-pocket-vulkan. Não trabalhar em paralelo no mesmo checkout: uma sessão do Claude se iniciou sem querer e sobrepôs alterações, chegando a duplicar vk_outline_scale. A definição extra/callback indesejado não estão mais presentes; estado final restaurado e validado com uma definição CVAR_LATCH_GFX, padrão 0.5.
 
-Implementada e já validada no Xiaomi (rothko) uma feature nova no branch `feature/android-pocket-vulkan` (`E:\Projetos Linux\ezquake-source`): download automático dos dados do jogo (Quake shareware + assets QuakeWorld do nQuake) no primeiro launch do app Android, em vez de exigir cópia manual de arquivos.
+**Controles finais:** esquerdo = frente/trás/strafe, direito = mira. Não acoplar novamente movimento e pitch/yaw. Um toque/arrasto livre só mira; dois toques curtos próximos (250ms de toque, segundo até300ms) iniciam tiro no segundo DOWN. Segurar o segundo permite mirar atirando; UP/CANCEL solta. FIRE também aceita arrasto durante tiro. Fontes simultâneas de ataque são contadas para evitar ataque preso/liberado cedo.
 
-**Não commitado ainda** — pendente de validação completa (funcionou no celular, falhou no tablet) antes de pedir autorização pra commitar.
+**Console/teclado:** KBD sempre disponível quando touch está ativo; abre console e solicita IME. Seta de retorno recolhe console. IN_TouchConsoleActive reconhece o console forçado inicial e os caminhos SDL_TEXTINPUT/Key_Event_TextInput aceitam suas letras. in_touch 2 segue o último evento físico/touch; não força off só por SDL_HasKeyboard/HasMouse. Abertura automática confirmada no Xiaomi após startup de aproximadamente9s: mInputShown=true, SDLDummyEdit/SDLInputConnection e ImeTracker onShown. Não há IME_DEBUG/IME_TRACE no código final.
 
-## Arquivos da feature (todos novos/modificados, não commitados)
+**Imagens:** prioridade aos arquivos Quake já existentes (fundos ez_button, runa q, balão chaticons e crosshair do config), Kenney CC0 só para lacunas. Não adicionar PK3/PAK/dados do usuário ao Git.
 
-- `app/src/main/java/org/ezquake/android/GameDataManifest.java` (novo) — lista de 399 arquivos essenciais (~124.3MB) + 5 arquivos de texturas HD opcionais (~385.4MB), cada entrada com `remotePath`/`localPath`/`approxSize` reais, verificados um a um contra a árvore do GitHub `nQuake/distfiles` (via `gh api repos/nQuake/distfiles/git/trees/master?recursive=1`) e cruzados com uma instalação real do instalador nQuake em `C:\nquakezero` nesta máquina.
-- `app/src/main/java/org/ezquake/android/GameDataInstaller.java` (novo) — baixa via `HttpURLConnection` puro (sem libs novas), grava em `<arquivo>.part` e só renomeia pro nome final após completar (nunca deixa dado parcial passar na checagem `isEssentialDataPresent`), pula arquivos já baixados (retomável), limpa `.part` órfãos no início.
-- `app/src/main/res/layout/activity_launcher_progress.xml` (novo) — overlay simples (TextView + ProgressBar) sobre o splash já existente, só inflado quando entra no fluxo de download.
-- `app/src/main/java/org/ezquake/android/EzQuakeLauncherActivity.java` (modificado) — `launchGame()` agora checa `GameDataInstaller.isEssentialDataPresent(baseDir)` antes de abrir o jogo; se faltar, baixa em `ExecutorService` background com UI de progresso; trata falha de rede (AlertDialog retry/sair) e espaço em disco insuficiente (`StatFs` prévio); depois do essencial, oferece as texturas HD como prompt opcional uma vez só (`SharedPreferences`: `hd_textures_prompted`, `hd_textures_installed`).
-- `src/sys_posix.c` — **não foi tocado**, continua como fallback de segurança (`Android_HasUsableBaseData`/`Android_PreflightDataFolder`), mesmos candidatos de arquivo (`id1/pak0.pak`, `id1/PAK0.PAK`, `id1/gfx.wad`, `id1/gfx/palette.lmp`).
+**Armas:** L/R = weapon 12/10 (mesmo menu nativo). Config do Tiago contém cl_weaponpreselect 4; a troca pode ser pré-seleção até disparar em deathmatch. Não alterar a cfg para contornar isso.
 
-Plano completo salvo em `C:\Users\Tiago\.claude\plans\luminous-spinning-yao.md` (mesma máquina Windows onde a sessão anterior rodou) — não acessível do tablet, mas o resumo acima cobre o essencial.
+**Vulkan:** preservar port dos outlines e otimizações anteriores do Claude (static index, sky/bind cache, aposentadoria de descriptors, resolução Android). Outline é opcional, custo de FPS confirmado; desligar devolve performance. vk_outline_scale 0.5 usa 25% dos pixels no normals pass; exige vid_restart. Redesenho do mundo e composição fullscreen continuam, sem ganho de FPS medido para a escala.
 
-## Fonte dos dados
+**Release para amigo com S24 Ultra:** assembleRelease usa CMake Release/-O3, APK não-debuggable; EZQUAKE_ANDROID_RELEASE compila fora profiling, diagnóstico de entrada e validation layers. Sem seções .debug na lib nativa empacotada. Assinatura v2 válida, mesma chave de testes interna (não chave de publicação). APK em app/build/outputs/apk/release/app-release.apk, 15.316.834 bytes, SHA256 634742F5DCC7EF998881677791AC7009491370423BA699306D5B7BC2B91AC41C. Android 10+ / arm64. Nada enviado a terceiros pelo agente: Tiago compartilha o arquivo.
 
-Repositório `https://github.com/nQuake/distfiles` (shareware Quake 1.06 + assets QuakeWorld livres de licença problemática, distribuídos publicamente há ~20 anos). Download via `https://raw.githubusercontent.com/nQuake/distfiles/master/<caminho>`, sem autenticação. Excluído deliberadamente: Team Fortress (`addon-fortress/`), Clan Arena (`addon-clanarena/` e `non-gpl/qw/sound/` inteira, que só contém sons de CA), demos de exemplo (`matchinfo/`).
+**Validação:** testes touch/IME/double-tap e builds Android Debug/Release passaram. Release também exigiu eliminar stubs sem uso e lista de extensões sem uso; mantida guarda Vulkan em R_Shutdown para builds GL. Nenhum teste em S24 Ultra e nenhum benchmark novo de CPU/GPU/termal realizado. iPhone ainda é port futuro, não iniciado.
 
-## Estado do teste
+**Git:** Tiago autorizou nesta sessão commit local do estado recuperado para protegê-lo. Não autorizou push/PR. Stage deve incluir código, shaders, assets CC0/licença, teste e handoff; não logs/APKs/scripts locais com caminhos específicos. Depois do commit, continue a partir dele e não reaplique patches antigos.
 
-- **Celular Xiaomi (rothko, 2407FPN8EG, serial ADB `LJN7LFRKXG79P7J7`)**: ✅ funcionou de ponta a ponta. Download completou, `EzQuakeActivity` abriu e ficou rodando normalmente (~120fps confirmado no logcat via `BufferQueueProducer`), sem `FATAL EXCEPTION`/crash no log.
-- **Tablet do Tiago (USB-A, conectado via adaptador/cabo USB-A→USB-C na porta USB-C do PC)**: ❌ reportado por Tiago que "apareceu, baixou os arquivos, mas depois fecha a tela" — ou seja, o download em si funcionou (rede ok), mas o app morre em algum ponto depois disso (possivelmente ao tentar abrir `EzQuakeActivity`, ou durante/logo após o prompt de texturas HD, ou um crash nativo no motor SDL/Vulkan específico daquele hardware).
-- **Ainda não foi possível capturar o log do crash no tablet**: o ADB no PC não detectou o tablet (`adb devices` veio vazio mesmo após `kill-server`/`start-server`). Motivo mais provável: falta autorizar o popup "Permitir depuração USB?" na tela do tablet (não confirmado se apareceu), ou "Depuração USB" não está ativada nas Opções do desenvolvedor do tablet, ou o cabo/adaptador USB-A→USB-C usado é só de carga (não transfere dados).
 
-## Por que o crash provavelmente é específico do tablet
+Última atualização: 2026-07-22 (sessão de commits + investigação de performance)
 
-Nenhuma mudança de código foi feita entre o teste do celular (passou) e o do tablet (falhou) — é o mesmo APK. Hipóteses a investigar com o log real do tablet:
-1. Fabricante/Android do tablet mata o processo de forma mais agressiva durante o download em background (gerenciamento de memória/bateria diferente do MIUI do Xiaomi).
-2. O tablet pode ter uma GPU/driver Vulkan diferente que falha ao inicializar `EzQuakeActivity` (já vimos antes, no trabalho de Vulkan deste mesmo projeto, que bugs de driver/GPU são comuns e específicos de aparelho — ver AGENTS.md, seção de correções Vulkan).
-3. Pode ser um crash Java real na nova lógica (`GameDataInstaller`/`EzQuakeLauncherActivity`) que só se manifesta com timing/quantidade de memória diferente no tablet — precisa do stacktrace real pra confirmar ou descartar.
+## Regra permanente (Tiago pediu explicitamente nesta sessão)
 
-## Próximo passo imediato
+**Manter este arquivo atualizado em AMBOS os repositórios sempre** — este (`E:\Projetos Linux\ezquake-source\continue.md`) e `E:\Projetos Linux\ezquake-sdl3-vulkan-pr\continue.md` — toda vez que uma sessão avançar ou pausar, não só quando pedido. Objetivo: sempre saber onde paramos, em qualquer um dos dois worktrees, mesmo entre sessões/janelas de contexto diferentes.
 
-1. No tablet: `Configurações → Sobre o tablet → tocar 7x em "Número da versão"` pra habilitar Opções do desenvolvedor (se ainda não estiver), depois `Configurações → Opções do desenvolvedor → ativar "Depuração USB"`.
-2. Reconectar o cabo USB-A→USB-C e aceitar o popup de autorização que deve aparecer na tela do tablet.
-3. Rodar `"C:\Android\Sdk\platform-tools\adb.exe" devices -l` pra confirmar que o tablet aparece.
-4. Se aparecer: instalar o APK (`app/build/outputs/apk/debug/app-debug.apk`, já compilado e presente no worktree — ou recompilar se o Claude no tablet estiver rodando de outra máquina/sessão sem esse build), limpar dados antigos (`adb shell pm clear org.ezquake.android` + `adb shell rm -rf //storage/emulated/0/Documents/ezQuake` — atenção ao `//` duplo no início do path se rodar via Git Bash/MSYS, senão o path é reinterpretado incorretamente), iniciar captura de log (`adb logcat -c` seguido de `adb logcat -v time` rodando em background) ANTES de abrir o app, então abrir o app e reproduzir o fechamento.
-5. Procurar no log por `FATAL EXCEPTION`, `AndroidRuntime`, `libc.*Fatal signal`, ou qualquer menção a `org.ezquake.android`/`EzQuakeLauncherActivity`/`EzQuakeActivity`/`GameDataInstaller` por perto do momento em que a tela fecha.
-6. Se for crash Java: corrigir no código Java listado acima. Se for crash nativo (SDL/Vulkan) específico daquele hardware: pode ser um problema pré-existente do renderer Vulkan neste device, não relacionado à feature de download — nesse caso avaliar se faz sentido também tentar `vid_renderer` diferente ou investigar separadamente.
-7. **Não commitar nada da feature de download ainda** — só depois que o crash do tablet for entendido e (se for bug real) corrigido, com autorização explícita do Tiago pra commit/push, seguindo a regra do AGENTS.md do projeto.
+## Duas frentes de trabalho em paralelo
 
-## Regras do projeto (lembrar)
+### 1. Download automático de dados do Quake (Android) — este worktree, branch `feature/android-pocket-vulkan`
 
-- Ler `AGENTS.md` (raiz do repo) e `docs/android-pocket-vulkan-handoff.md` antes de mexer em qualquer coisa — worktree local é fonte de verdade, não confiar em branch remoto/PR.
-- Não commitar/push sem autorização explícita do Tiago no momento.
-- Build Android: variáveis de ambiente e comando completo estão documentados no `AGENTS.md`, seção "Build validado".
-- Ao usar `adb shell` com paths absolutos tipo `/storage/...` a partir do Git Bash/MSYS no Windows, usar `//storage/...` (barra dupla) pra evitar que o MSYS reinterprete o path como um caminho de host.
+**Estado**: working tree limpo (só este `continue.md` modificado). Tudo já commitado/enviado (`b3c586fb`, `acb47046`).
+
+**Pendente, ainda não retomado nesta sessão** (Tiago decidiu não trabalhar nisso agora, focar no sdl3-vulkan-pr):
+- Celular novo (vili_global, `2107113SG`, serial ADB `8caabf25`): estávamos prestes a iniciar `adb -s 8caabf25 logcat -v time` em background e então abrir o app pela primeira vez, pra validar o fluxo completo de download igual já validado no rothko (2407FPN8EG). Ver histórico detalhado de comandos MIUI-friendly no git log deste arquivo se precisar recuperar os comandos exatos.
+- Tablet original do Tiago: nunca conseguimos conectar via ADB, "baixa os arquivos mas depois fecha a tela" — não diagnosticado, possivelmente abandonado a favor do celular novo. Perguntar ao Tiago se ainda quer retomar.
+
+### 2. Vulkan desktop (`vk_*.c`, compartilhado com este branch) — trabalho ativo agora em `E:\Projetos Linux\ezquake-sdl3-vulkan-pr`, branch `feature/sdl3-vulkan-pr`
+
+**Este é o foco atual da sessão.** Estado completo, detalhado e atualizado está em `E:\Projetos Linux\ezquake-sdl3-vulkan-pr\continue.md` — ler esse arquivo lá para retomar. Resumo:
+
+- **5 commits feitos localmente nesse worktree, testados visualmente e aprovados pelo Tiago ("funcionou ok sem bugs"), mas AINDA NÃO enviados (push pendente, aguardando autorização):**
+  1. `b3ada541` — cache de last-bound-pipeline/descriptor-set no loop do mundo (`vk_world.c`), achado numa investigação de performance dedicada com o Fable 5 — elimina rebinds redundantes de pipeline/descriptor set entre draws consecutivos do mesmo material.
+  2. `00e4ff14` — fix do drawflat Vulkan (bug do racat): `r_drawflat_mode` não deveria gatear ativação, só estilo de cor.
+  3. `a389be91` — fix de CMake: `REGEX REPLACE` sem match retorna string original, causava `FILEVERSION` inválido em clones sem tags.
+  4. `0493ea03` — fix de build: preset `msvc-x64` não fixava `RENDERER_VULKAN=ON`, causava builds OpenGL-only silenciosos ("Invalid vid_renderer value detected"). Esse fix é específico do preset CMake do worktree desktop — Android usa `_configure_vulkan.bat` próprio, não precisa dessa mudança.
+  5. `8c801c33` — buffers estáticos do mundo (`vk_buffers.c`) passados para memória `DEVICE_LOCAL` com staging upload.
+- **Também investigado e descartado nesta sessão** (não aplicar): uma proposta de arquitetura de terceiros (RHI, migração por sistema, instancing, command buffers secundários, HUD SDF) — a maior parte já existe no projeto com outros nomes; os itens genuinamente ausentes (instancing de verdade, command buffers secundários, HUD SDF) foram avaliados e não valem o risco/esforço agora, sem gargalo medido.
+- **Próximo passo**: perguntar ao Tiago se quer (a) push desses 5 commits pra `origin feature/sdl3-vulkan-pr`, (b) portar os commits 1, 2 e 5 pra este branch Android (`vk_world.c`/`vk_buffers.c` são compartilhados, então bind cache/drawflat/DEVICE_LOCAL provavelmente aplicam aqui também — o commit 4 não se aplica ao Android).
+- Nunca commitar/push em nenhum dos dois worktrees sem autorização explícita do Tiago no momento da conversa atual.
+
+## Regras do projeto (lembrar sempre)
+
+- Ler `AGENTS.md` (raiz deste worktree) e `docs/android-pocket-vulkan-handoff.md` antes de mexer em qualquer coisa — este worktree local é fonte de verdade, não confiar em branch remoto/PR/histórico de commits.
+- **Nunca commitar/push sem autorização explícita do Tiago no momento da conversa atual.**
+- Dois worktrees distintos, não confundir: `E:\Projetos Linux\ezquake-source` (este, branch Android `feature/android-pocket-vulkan`) e `E:\Projetos Linux\ezquake-sdl3-vulkan-pr` (branch desktop primário `feature/sdl3-vulkan-pr`, head real da PR #1145 upstream). Trabalho de Vulkan validado no desktop deve, quando não quebrar o Android, ser portado para os dois branches na mesma sessão.
+- Build Android: variáveis de ambiente documentadas no `AGENTS.md`, seção "Build validado".
+- Build Windows do worktree do PR: usar o junction `C:\eqspr` (não o path com espaço `E:\Projetos Linux\...`, que quebra o build de libs autotools como speex/speexdsp) — script `_build_wip.bat` já atualizado pra isso.
+- Ao usar `adb shell` com paths absolutos tipo `/storage/...` a partir do Git Bash/MSYS no Windows, usar `//storage/...` (barra dupla) pra evitar que o MSYS reinterprete o path como caminho de host.
+- MIUI pode exigir autorizar "Instalar via USB" nas Opções do desenvolvedor (separado da autorização de Depuração USB) antes de `adb install` funcionar — se der `INSTALL_FAILED_USER_RESTRICTED`, pedir pro usuário verificar essa opção e/ou aceitar um popup de confirmação que aparece na tela do aparelho no momento da instalação.
+
+## Touch controls Android (2026-10-09) — implementado, NÃO testado em aparelho
+
+Build Android debug OK. Nada commitado. Arquivos: `src/in_touch.{c,h}` (novo, só `__ANDROID__`), ganchos em `vid_sdl2.c` (eventos `SDL_EVENT_FINGER_*`, `IN_TouchFrame`, `IN_UpdateTextInputState` agora abre/fecha IME só quando touch ativo e `key_dest` é console/chat), `in_sdl2.c` (`IN_TouchMove`, `IN_TouchInit`), `cl_screen.c` (`IN_TouchDraw` antes do cursor), `keys.c` (texto do IME sem keydown anterior), `menu_options.c` (seção Touch Controls na página de mouse), `CMakeLists.txt`.
+
+Cvars: `in_touch` 0 off / 1 on / 2 auto (padrão; liga se NÃO houver teclado E mouse via `SDL_HasKeyboard/HasMouse`, reavaliado todo frame, então hub USB faz hotplug), `in_touch_scale`, `in_touch_alpha`, `in_touch_look_sens` (negativo inverte). Desligado = eventos de dedo descartados, zero impacto em mouse/teclado. Ao mudar de estado, `IN_TouchReleaseAll` solta tudo. Console imprime `touch: mode=.. keyboard=.. mouse=.. -> on/off` a cada mudança.
+
+Controles: jogo = stick flutuante esquerda (<42% da tela), look no resto, FIRE/JUMP/W+/W- à direita, TAB/SAY/CON/ESC no topo. Menu/console/chat = d-pad esquerda, OK/BACK direita, KBD (reabre IME) no topo; toque no menu move cursor e clica (clique atrasado 2 frames).
+
+**Testar quando Tiago chegar:**
+1. Sem hub: log mostra keyboard/mouse; confirmar que auto liga o overlay. RISCO: Android pode reportar teclado/mouse virtual sempre => auto nunca liga. Se acontecer, usar `in_touch 1` e trocar a detecção por último evento físico.
+2. Com hub teclado+mouse: overlay some, IME nunca abre, latência igual a antes. Desplugar/replugar.
+3. Menu: toque move cursor e clica? (pode precisar de `IN_MouseTrackingRequired`/cursor visível); d-pad/OK/BACK.
+4. Console/chat: IME abre, digitar, Enter envia; KBD reabre. Se Key_Console(0, ch) falhar, ver `keys.c Key_Event_TextInput`.
+5. Jogo: stick, look, fire, jump, trocar arma, scoreboard, multitouch simultâneo; sentido do look (ajustar sinal/sens).
+6. Tamanho/posição dos botões (`Layout()` em in_touch.c). Gamepad (perfil Android) ainda NÃO feito.
+
+## Otimizações de performance mobile (2026-10-09) — implementadas, NÃO testadas em aparelho
+
+Build Android debug OK, nada commitado. **Backups**: `E:\tmp\eqvk-backup\` (`pre-perf-*.patch` = antes das otimizações, `post-perf-*.patch` = depois, cópias de `in_touch.*` e `vk_profile.*`). Cada otimização tem **cvar de fallback** (0 = caminho original):
+
+| cvar | padrão | o que faz |
+|---|---|---|
+| `vk_opt_static_index` | 1 | índices do mundo montados 1x por mapa num buffer imutável (`vk_world.c` `VK_WorldStaticIndexBuild`) em vez de reconstruir+reenviar todo frame. Superfície com VBO alterado ou fora do worldmodel cai no caminho dinâmico sozinha. |
+| `vk_opt_sky_cache` | 1 | descriptor set do céu reescrito 1x por frame, não a cada draw flat/sky |
+| `vk_opt_bind_cache` | 1 | pula `vkCmdBindPipeline`/`BindDescriptorSets` repetidos em alias models e sprites 3D |
+| `vk_opt_texture_nowait` | 1 | mudar filtro/anisotropia/clamp aposenta o descriptor antigo (livre após 3 frames) em vez de `vkDeviceWaitIdle` |
+| `vk_profile` | 0 | `vk_profile 1` imprime a cada 2s: fps, CPU ms, GPU ms (timestamps), esperas fence/acquire/image, submit/present, draws do mundo (estáticos), índices enviados. `src/vk_profile.{c,h}` |
+| `vid_android_resolution` | 0 | altura do buffer em px (0 = Auto, teto 1080p). A linha **Resolution** do menu (Options > Screen Settings) cicla Auto + lista montada a cada abertura a partir da tela detectada (`VID_AndroidBuildResolutionList`: nativa + 1440/1200/1080/900/720/600/540/480/360 abaixo dela, mesma proporção). Compositor faz upscale. JNI `EzQuakeActivity.setRenderHeight` -> `SDLSurface.applyRenderHeightCap`. |
+
+Não feito (decisão): Swappy/display timing (vsync `r_swapInterval` + `cl_maxfps` cobrem pacing básico), ASTC/ETC2, bindless, merge de draws, loop duplo do mundo.
+
+**Testar quando Tiago chegar** (baseline com tudo em 0, depois ligar um por vez, `vk_profile 1`, dm3/dm4/dm6, mesma posição, 60 s):
+1. Visual igual com `vk_opt_static_index` 1 vs 0 (paredes, portas/plats, água, céu, luma/fullbright, mapa novo, `vid_restart`). `idx up` do log deve cair para ~0.
+2. Trocar anisotropia/filtro no menu com mapa carregado: sem travada, sem textura errada (`vk_opt_texture_nowait`).
+3. Modelos/sprites/partículas corretos com `vk_opt_bind_cache 1`.
+4. Menu Resolution: cada opção preenche a tela, toque OK, sem tela preta/crash; Auto volta ao normal; escolha persiste após reiniciar o app.
+5. Log `android video: display WxH, N resolutions offered`: confirma que `SDL_GetDesktopDisplayMode` devolve a resolução FÍSICA e não a do buffer capado (se vier 1920x864 a lista sai errada). Linhas Bit Depth/Fullscreen do menu seguem visíveis no Android, sem efeito.
+6. Se algo quebrar: cvar correspondente = 0 e anotar o sintoma.
+
+## Outline de mundo (gl_outline & 2) portado para o Android Vulkan (2026-10-09) — compila e instala, NÃO verificado visualmente
+
+Portado de `c05de798` + `ac53d594` (branch desktop) só a parte do outline, sem cáusticas/fxaa/vsync/gamma/screenshot:
+- Shaders novos: `vk_world_normals.{vert,frag}`, `vk_world_outline.frag` (registrados no `CMakeLists.txt`).
+- `vk_renderpass.c`/`vk_swapchain.c`: render pass de normais (RGBA16F + depth, sempre 1 amostra) e framebuffers por imagem do swapchain.
+- `vk_draw.c`: pipeline/composição do outline + teardown em `VK_HudResourcesShutdown` (fix do hang no vid_restart).
+- `vk_world.c`: `VK_DrawWorldNormalsPass` (mundo opaco só com posição; respeita index buffer estático/dinâmico), `VK_WorldReopenMainRenderPass`, composição entre o mundo opaco e alias/sprites. Neste branch o main pass não tem variante LOAD: reabre-se o mesmo pass (re-clear) o que é sem perda porque nada foi desenhado antes.
+- `r_brushmodel_surfaces.c`: `R_DrawWorldOutlines` usa `RuleSets_AllowEdgeOutline()` (antes bloqueava gl_outline 2/3 fora de cheats/demo).
+- Fallback: `vk_opt_world_outline` (padrão 1; 0 desliga o pass inteiro). Custo zero com `gl_outline` sem bit 2.
+- Backup pré-port: `E:\tmp\eqvk-backup\pre-outline-*.patch`.
+
+**Testar**: `gl_outline 2` ou `3` num mapa (dm3), ver contornos nas arestas de paredes; `vid_restart` (não pode travar); MSAA e post-process (gamma/FXAA) ligados e desligados; alternar `vk_opt_world_outline 0/1`; conferir erros no logcat.
+
+## Retomada Codex — 2026-10-09
+
+GitHub confirmado via gh: origin/feature/android-pocket-vulkan = db779096af939b25aacfbc0dd7ef0548a5e7c5f7, igual ao HEAD local. Touch, assets Kenney, otimizações e outlines de hoje continuam NÃO commitados. PR desktop #1145 continua OPEN. CI Android-branch run 29971114257 falhou no job Linux ao linkar VK_AbandonActiveFrame em build sem Vulkan; corrigida localmente a guarda RENDERER_OPTION_VULKAN em R_Shutdown. CI remoto não foi reexecutado (sem push).
+
+Histórico enviado por Tiago: outline confirmado visualmente por ele, com custo alto de FPS. Kenney já compilado pelo Claude, mas instalação estava pendente. Não confundir com as seções antigas acima que ainda dizem NÃO testado.
+
+Concluída a última autorização pendente: vk_outline_scale (padrão 0.5, CVAR_LATCH_GFX, efetivo limitado a 0.25..1). Normais/depth/framebuffer/viewport/scissor usam tamanho reduzido; composição usa o tamanho real da textura para offsets. 0.5 reduz a área desse passe a 25%, mas mantém redraw da geometria e composição fullscreen. Mudar requer vid_restart; vk_outline_scale 1 volta à resolução cheia. Não há FPS medido nem validação visual deste novo tamanho ainda.
+
+Build Android debug final SUCCESSFUL. APK com assets Kenney e alteração de outline instalado via adb install -r no Xiaomi LJN7LFRKXG79P7J7, launcher relançado. Não alterada cfg do usuário, não tiradas screenshots. Sem commit/push/PR. Próximos testes: gl_outline 2/3 num mapa, comparar vk_outline_scale 0.5/1 + vid_restart e medir vk_profile 1; validar ícones no touch e MSAA/post-process com outline.
+
+## Touch/chat e arte original — retomada 2026-10-09
+
+Tiago esclareceu: priorizar imagens do próprio Quake encontradas em C:\unezquake; Kenney só preenche lacunas, nunca gerar arte do zero. src/in_touch.c agora prefere gfx/ui/ez_button_normal/pressed, textures/tracker/q no MENU, recorte do balão de textures/chaticons no CHAT e crosshairs/<crosshairimage> no FIRE. Fallback aos arquivos Kenney já existentes. Nenhum dado Quake adicionado ao repositório. PK3 e crosshairs/7.png existem no aparelho; PK3 do PC e celular têm tamanhos diferentes, portanto disponibilidade de cada imagem no celular ainda precisa de confirmação visual.
+
+Chat: Tiago confirmou que tocar fisicamente no celular abre say: mas não o IME. Encontrada proteção de 10s após tecla física bloqueando também solicitações explícitas. CHAT/CONSOLE/KBD agora ignoram essa espera e pedem reabertura. Teste tests/touch-keyboard.ps1 compila as funções C reais em harness MSVC e verifica bloqueio físico, desbloqueio explícito, consumo único do nudge e ausência de IME fora de console/chat. Passou; build Android debug final passou; APK instalado e launcher relançado. Abertura real do IME permanece a confirmar por Tiago. Android show_ime_with_hard_keyboard observado como 0; não mudado globalmente.
+
+Joystick combinado: Tiago perguntou sobre mover e olhar com um dedo. Apresentadas duas opções (vertical anda/horizontal gira, ou borda do stick gira); escolha ainda pendente, nada implementado.
+
+iPhone: explicado que requer build/port iOS, Mac/Xcode/assinatura e MoltenVK; modelo de iPhone e acesso a Mac ainda desconhecidos. Não iniciado port iOS.
+
+## Direcional de um dedo — 2026-10-09
+
+Tiago confirmou que quer andar e olhar pelo direcional esquerdo. IN_TouchMove agora mantém frente/trás no eixo vertical e usa eixo horizontal para girar yaw, com cl_yawspeed e o mesmo passo de tempo de CL_AdjustAngles (cls.trueframetime ou physframetime conforme cl_independentPhysics). Este joystick não faz mais strafe; olhar vertical permanece pela área de look. Teste tests/touch-keyboard.ps1 ampliado para giro em 60/120Hz e física independente, avanço preservado e pausa: falhou com código antigo e passou com correção. Build Android debug passou; APK instalado e launcher relançado. Sensação real de controle ainda depende de validação pelo usuário.
+
+L/R: usuário relatou possível falha, depois explicou que entrou em servidor sem armas. Mantidos impulse 10/12; não alegar bug confirmado nem troca validada nesse servidor. Nenhum commit/push.
+
+## Direcional vertical também olha — 2026-10-09
+
+Tiago pediu explicitamente olhar cima/baixo pelo mesmo direcional. Adicionado pitch ao eixo vertical em IN_TouchMove, junto do avanço/recuo existente, usando cl_pitchspeed e passo da física. Respeita minpitch/maxpitch e pausa; desativa pitch drift ao usar esse eixo. Empurrar para cima agora anda para frente E olha para cima simultaneamente; para baixo recua E olha para baixo. Teste vertical falhou antes e passou após correção; build Android debug passou. APK instalado e launcher relançado. Validação visual e sensação do acoplamento ainda pendentes. Sem commit/push.
+
+## Sensibilidade do direcional — 2026-10-09
+
+Tiago achou o giro impossível de controlar. Reduzido yaw/pitch do stick para 20% do anterior, multiplicado pelo in_touch_look_sens existente (ajustável no menu). Movimento frente/trás não mudou. No padrão sens=1 e cl_yawspeed=140/cl_pitchspeed=150: 28/30 graus/s em deflexão máxima. Testes verificam taxas em 60/120Hz, limites pitch, física independente e sens=0.5; passaram após falha comprovada no código anterior. Build Android debug passou, APK instalado e launcher relançado. Sensação no aparelho ainda a validar. Sem commit/push.
+
+## Direcional: câmera por arrasto — 2026-10-09, estado atual
+
+Tiago continuou achando impossível mesmo com 20% da velocidade. Removido giro contínuo por deflexão (yaw e pitch) e seus externs de passo de física. Movimento de ROLE_STICK agora acumula look_dx/look_dy como ROLE_LOOK; câmera só acompanha deslocamento do dedo usando caminho existente e in_touch_look_sens. Dedo parado não gira/inclina mais, mas mantém avanço/recuo pelo stick_y; strafe continua ausente no stick. Este comportamento substitui as duas seções anteriores de velocidade contínua. Teste reproduziu giro involuntário com eixo segurado no código anterior e passou após remoção; também verifica consumo único de arrasto, sensibilidade, pausa e limites de pitch. Build Android debug passou, APK instalado/relançado. Ergonomia com um dedo ainda depende de Tiago. Sem commit/push.
+
+## Botões visuais console/teclado — 2026-10-09
+
+B_KBD fica visível em todos os destinos quando touch está ativo. No jogo/menu abre toggleconsole e solicita IME; no console/chat solicita reabertura sem fechar a entrada. Durante gameplay fica no topo à esquerda de TAB; fora dele no topo direito. B_CONSOLE também aparece quando key_console, ao lado de KBD, com icon_arrow_curved existente para recolher console via toggleconsole. Nenhuma arte criada. Testes de comando, visibilidade e solicitação de texto falharam antes e passaram depois; build Android debug passou; APK instalado/relançado. Abertura real do IME e usabilidade visual ainda dependem do aparelho/usuário. Sem commit/push.
+
+## Controle touch final separado + FIRE arrastável — 2026-10-09
+
+Depois de testar o controle combinado, Tiago apontou conflito entre andar e olhar verticalmente e perguntou como fazer ficar fácil como WASD+mouse. Recomendado/restaurado stick esquerdo só movimento (frente/trás e strafe); área direita só mira, sem look acumulado no ROLE_STICK. Tiago perguntou como mirar e apertar tiro com o mesmo polegar: ROLE_BUTTON/B_FIRE agora acumula look_dx/dy ao arrastar mantendo +attack desde DOWN até UP/CANCEL, mesmo ao sair da área do botão. Outros botões não movimentam mira. Nenhuma arte/novo modo/cvar adicionado.
+
+L/R corrigidos de impulse 10/12 para weapon 10/12, os mesmos comandos do menu de binds do cliente. Config do PC tem cl_weaponpreselect 4, portanto em deathmatch a escolha pode só aplicar ao atirar; preservado.
+
+Tests/touch-keyboard.ps1 executa funções C reais também do finger loop, com stubs de plataforma/seleção de botão: verifica FIRE down/motion/up, mirar durante tiro, soltar ataque, JUMP não mirar, stick não mirar e soltar movimento. Também verifica os comandos weapon 10/12. Todos passaram; build Android debug passou; APK instalado e relançado. Uso real e ergonomia ainda dependem de teste do usuário. Este estado substitui todas as experiências de stick combinado anteriores. Sem commit/push.
+
+## Tiro ao tocar a área de mira — 2026-10-09
+
+Pedido de Tiago: não precisar acertar FIRE, tocar tela para atirar. ROLE_LOOK (toque na área livre direita, x>=0.42; botões têm prioridade) inicia +attack no DOWN, arrasto mira pelo caminho existente e UP/CANCEL libera ataque. ROLE_STICK/esquerda não atira. IN_TouchReleaseAll também libera ataque de ROLE_LOOK. Contagem attack_fingers evita soltar ataque prematuramente se FIRE e área livre estiverem pressionados simultaneamente. Teste de toque livre falhou antes e passou depois; testa mira, UP, limpeza geral e dois dedos com cancelamento. Build Android debug passou; APK instalado/relançado. Agora tocar a área direita para apenas mirar também atira: comportamento solicitado, confirmar ergonomia no celular. Sem commit/push.
+
+## Console inicial/IME e toque duplo — 2026-10-09
+
+IME investigado com logs temporários C/Java e ImeTracker. Em solicitações explícitas, registrado want=1/dest=2/touch=1, SDL_StartTextInput=true, editor focus/window/accepting=true e ImeTracker onShown. Falha inicial encontrada: console full-screen de SCR_NEED_CONSOLE_BACKGROUND pode estar visível com key_dest=key_game. Novo IN_TouchConsoleActive compartilha essa detecção com wants-IME, GameDest, filtro de SDL_TEXTINPUT e Key_Event_TextInput, para solicitar teclado E aceitar letras nesse console. last_physical_key começa em -11 para não suprimir IME nos primeiros 10s sem tecla física. Caminho desktop preservado por macro que retorna key_dest==key_console. Teste console inicial falhou antes e passou depois. Todos os IME_DEBUG removidos, SDLActivity.java restaurado após diagnóstico.
+
+Tiago pediu distinguir mira de tiro: toque simples/arrasto livre só mira. Primeiro toque curto (<=250ms, movimento dentro de UnitSize) registra candidato; segundo toque em até300ms na mesma região inicia tiro no DOWN e permite arrastar mirando, até UP/CANCEL. Limpeza de touch apaga candidato e libera ataque. FIRE continua pressionar/arrastar para tiro direto. Testes verificam toque simples, arrasto, toque duplo, atraso>300ms, região distante, cancelamento e limpeza. Build Android debug passou; APK instalado/relançado. Ergonomia e teclado inicial real ainda a validar no aparelho. Sem commit/push.
+
+## IME em in_touch 2 confirmado no aparelho — 2026-10-09
+
+Tiago reiterou teclado ausente no console inicial em modo auto. Removida desativação incondicional por SDL_HasKeyboard && SDL_HasMouse em IN_TouchFrame: auto passa a seguir eventos físicos/touch, conforme intenção já documentada. Teste com ambos periféricos reportados reproduziu active=false antes e passa após mudança.
+
+Investigação temporária adicional mostrou delay de startup: antes do primeiro HandleEvents touch permanece false; primeiro frame útil aproximadamente9s após início. Depois de completar inicialização, rastreado mode=2/auto=1/want=1/key_dest=console e Android ImeTracker onShown. dumpsys input_method confirmou mInputShown=true, SDLDummyEdit focado com SDLInputConnection. As verificações anteriores de teclado oculto foram feitas cedo demais, ainda durante startup; não eram prova de falha depois do carregamento. Logs IME_TRACE removidos; build/testes finais passaram; APK final reinstalado/relançado. Sem alterar cfg, sem commit/push.

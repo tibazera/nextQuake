@@ -28,6 +28,7 @@ extern const unsigned char vk_sprite3d_frag_spv[];
 extern const unsigned int vk_sprite3d_frag_spv_len;
 
 extern texture_ref particletexture;
+extern cvar_t vk_opt_bind_cache;
 extern r_sprite3d_vert_t glvertices[ABSOLUTE_MAX_PARTICLES * 3];
 
 mspriteframe_t* R_GetSpriteFrame(entity_t* e, msprite2_t* psprite);
@@ -495,6 +496,7 @@ void VK_Draw3DSprites(void)
 		gl_sprite3d_batch_t* batch = &batches[i];
 		vk_sprite_pipeline_id_t pipelineId = VK_SpritePipelineForBatch(batch);
 		unsigned int j;
+		VkDescriptorSet lastDescriptorSet = VK_NULL_HANDLE;
 
 		if (!batch->count || !VK_SpriteCreatePipeline(batch->primitive_id, pipelineId)) {
 			continue;
@@ -520,7 +522,10 @@ void VK_Draw3DSprites(void)
 				continue;
 			}
 
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+			if (!vk_opt_bind_cache.integer || descriptorSet != lastDescriptorSet) {
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, spritePipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+				lastDescriptorSet = descriptorSet;
+			}
 			vkCmdDraw(commandBuffer, batch->numVertices[j], 1, batch->firstVertices[j], 0);
 		}
 	}

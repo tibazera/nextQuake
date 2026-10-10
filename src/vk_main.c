@@ -41,6 +41,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "tr_types.h"
 #include "glsl/constants.glsl"
 #include "vk_local.h"
+#include "vk_profile.h"
 
 vk_options_t vk_options;
 static qbool vk_recreate_swapchain_requested;
@@ -80,6 +81,32 @@ static void VK_AndroidHideStartupSplash(void)
 
 	(*env)->DeleteLocalRef(env, activity_class);
 	(*env)->DeleteLocalRef(env, activity);
+}
+
+// Asks the Java side to size the surface buffer to this height, aspect kept
+// (0 = default 1080p envelope). The compositor upscales the smaller buffer for free, so this is
+// the cheapest render-scale lever on phones; the swapchain follows through the
+// normal OUT_OF_DATE/resize path.
+void VK_AndroidSetRenderHeight(int height)
+{
+	JNIEnv* env = (JNIEnv*) SDL_AndroidGetJNIEnv();
+	jobject activity = (jobject) SDL_AndroidGetActivity();
+	jclass activity_class;
+	jmethodID method;
+
+	if (!env || !activity) {
+		return;
+	}
+	activity_class = (*env)->GetObjectClass(env, activity);
+	if (activity_class) {
+		method = (*env)->GetMethodID(env, activity_class, "setRenderHeight", "(I)V");
+		if (method) {
+			(*env)->CallVoidMethod(env, activity, method, (jint)height);
+		}
+		(*env)->DeleteLocalRef(env, activity_class);
+	}
+	(*env)->DeleteLocalRef(env, activity);
+	VK_RequestSwapChainRecreate();
 }
 
 // ANativeWindow_setFrameRate() needs API 30, but minSdk here is 29 -- the
@@ -229,52 +256,12 @@ static void VK_NoOperationEntity(entity_t* ent)
 	(void)ent;
 }
 
-static void VK_NoOperationFloat4(float v[4])
-{
-	(void)v;
-}
-
 static void VK_NoOperationViewport(int x, int y, int width, int height)
 {
 	(void)x;
 	(void)y;
 	(void)width;
 	(void)height;
-}
-
-static void VK_NoOperationAliasModel(model_t* model, aliashdr_t* hdr)
-{
-	(void)model;
-	(void)hdr;
-}
-
-static void VK_NoOperationAliasFrame(entity_t* ent, model_t* model, int pose1, int pose2, texture_ref texture, texture_ref fb_texture, qbool outline, int effects, int render_effects, float lerpfrac)
-{
-	(void)ent;
-	(void)model;
-	(void)pose1;
-	(void)pose2;
-	(void)texture;
-	(void)fb_texture;
-	(void)outline;
-	(void)effects;
-	(void)render_effects;
-	(void)lerpfrac;
-}
-
-static void VK_NoOperationSimpleItem(model_t* model, int skin, vec3_t origin, float scale, vec3_t up, vec3_t right)
-{
-	(void)model;
-	(void)skin;
-	(void)origin;
-	(void)scale;
-	(void)up;
-	(void)right;
-}
-
-static void VK_NoOperationParticles(int count)
-{
-	(void)count;
 }
 
 static int VK_BrushModelCopyVertToBuffer(model_t* mod, void* vbo_buffer_, int position, float* source, int lightmap, int material, float scaleS, float scaleT, msurface_t* surf, qbool has_fb_texture, qbool has_luma_texture)
@@ -656,7 +643,10 @@ void VK_BeginFrame(void)
 	frameIndex = vk_options.frame.currentFrame;
 	frameFence = vk_options.frame.inFlightFences[frameIndex];
 	{
+		double profStart = VK_ProfileNow();
+
 		waitResult = vkWaitForFences(vk_options.logicalDevice, 1, &frameFence, VK_TRUE, UINT64_MAX);
+		VK_ProfileAddTime(VK_PROF_FENCE_WAIT, profStart);
 	}
 	if (waitResult != VK_SUCCESS) {
 		Sys_Error("vulkan: frame fence wait failed: %d", waitResult);
@@ -672,7 +662,10 @@ void VK_BeginFrame(void)
 	// "no frame this loop", same idea as the OUT_OF_DATE/SUBOPTIMAL handling
 	// below.
 	{
+		double profStart = VK_ProfileNow();
+
 		result = vkAcquireNextImageKHR(vk_options.logicalDevice, vk_options.swapChain.handle, 1000000000ULL, vk_options.frame.imageAvailableSemaphores[frameIndex], VK_NULL_HANDLE, &vk_options.frame.imageIndex);
+		VK_ProfileAddTime(VK_PROF_ACQUIRE, profStart);
 	}
 	if (result == VK_TIMEOUT || result == VK_NOT_READY) {
 		return;
@@ -690,7 +683,10 @@ void VK_BeginFrame(void)
 	}
 	if (vk_options.frame.imageInFlightFences[vk_options.frame.imageIndex] != VK_NULL_HANDLE) {
 		{
+			double profStart = VK_ProfileNow();
+
 			waitResult = vkWaitForFences(vk_options.logicalDevice, 1, &vk_options.frame.imageInFlightFences[vk_options.frame.imageIndex], VK_TRUE, UINT64_MAX);
+			VK_ProfileAddTime(VK_PROF_IMAGE_FENCE, profStart);
 		}
 		if (waitResult != VK_SUCCESS) {
 			Sys_Error("vulkan: swapchain image fence wait failed: %d", waitResult);
@@ -786,6 +782,7 @@ void VK_BeginFrame(void)
 	// Dynamic lightmaps queued by the previous frame are copied before the
 	// render pass. This keeps transfer work on the frame submission and avoids
 	// the queue-wide stalls caused by immediate command buffers.
+	VK_ProfileFrameBegin(commandBuffer, frameIndex);
 	VK_TextureFlushPendingUploads(commandBuffer, frameIndex);
 
 	clearValues[0].color.float32[0] = vk_options.clearColor[0];
@@ -869,6 +866,7 @@ void VK_EndFrame(void)
 		}
 	}
 
+	VK_ProfileFrameEnd(commandBuffer, frameIndex);
 	{
 		result = vkEndCommandBuffer(commandBuffer);
 		if (result != VK_SUCCESS) {
@@ -889,10 +887,14 @@ void VK_EndFrame(void)
 		Sys_Error("vulkan: vkResetFences failed: %d", result);
 	}
 	{
+		double profStart = VK_ProfileNow();
+
 		result = vkQueueSubmit(vk_options.graphicsQueue, 1, &submitInfo, frameFence);
+		VK_ProfileAddTime(VK_PROF_SUBMIT, profStart);
 		if (result != VK_SUCCESS) {
 			Sys_Error("vulkan: vkQueueSubmit failed: %d", result);
 		}
+		VK_ProfileFrameSubmitted(frameIndex);
 	}
 
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -939,7 +941,10 @@ void VK_EndFrame(void)
 	}
 
 	{
+		double profStart = VK_ProfileNow();
+
 		result = vkQueuePresentKHR(vk_options.presentQueue, &presentInfo);
+		VK_ProfileAddTime(VK_PROF_PRESENT, profStart);
 	}
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 		// Only a real error requires recreating the swapchain. SUBOPTIMAL is
@@ -1124,6 +1129,7 @@ void VK_Shutdown(r_shutdown_mode_t mode)
 			vkDeviceWaitIdle(vk_options.logicalDevice);
 		}
 
+		VK_ProfileShutdown();
 		VK_HudResourcesShutdown();
 		VK_WorldResourcesShutdown();
 		VK_AliasModelResourcesShutdown();

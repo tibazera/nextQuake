@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "textencoding.h"
 #include "menu.h"
 #include "keys.h"
+#include "in_touch.h"
 #include "input.h"
 
 #ifdef _WIN32
@@ -2380,8 +2381,16 @@ void Key_Event_TextInput(wchar unichar)
 {
 	if (in_builtinkeymap.value)
 		return;
-	if (!lastKeyDown)
+	if (!lastKeyDown) {
+		// soft keyboard text arrives without a key event
+		if (!IN_TouchActive())
+			return;
+		if (key_dest == key_message)
+			Key_Message(0, unichar);
+		else if (IN_TouchConsoleActive())
+			Key_Console(0, unichar);
 		return;
+	}
 
 	if (key_dest == key_message)
 	{
@@ -2389,7 +2398,7 @@ void Key_Event_TextInput(wchar unichar)
 			Key_Message(K_BACKSPACE, K_BACKSPACE);
 		Key_Message(lastKeyDown, unichar);
 	}
-	else if (key_dest == key_console)
+	else if (IN_TouchConsoleActive())
 	{
 		if (lastKeyGeneratedCharacter)
 			Key_Console_Backspace();

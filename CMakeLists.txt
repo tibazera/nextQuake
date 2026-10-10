@@ -551,6 +551,9 @@ if(RENDERER_VULKAN)
     add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_sprite3d.frag vk_sprite3d_frag.spv)
     add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_post_process.vert vk_post_process_vert.spv)
     add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_post_process.frag vk_post_process_frag.spv)
+    add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_world_normals.vert vk_world_normals_vert.spv)
+    add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_world_normals.frag vk_world_normals_frag.spv)
+    add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_world_outline.frag vk_world_outline_frag.spv)
     add_resources(shaders_vulkan ${vulkan_spirv_shaders})
 
     set(vulkan_renderer_headers
@@ -567,6 +570,7 @@ if(RENDERER_VULKAN)
             ${SOURCE_DIR}/vk_instance.c
             ${SOURCE_DIR}/vk_lightmaps.c
             ${SOURCE_DIR}/vk_main.c
+            ${SOURCE_DIR}/vk_profile.c
             ${SOURCE_DIR}/vk_md3.c
             ${SOURCE_DIR}/vk_misc.c
             ${SOURCE_DIR}/vk_physical_devices.c
@@ -854,6 +858,7 @@ set(client
         ${SOURCE_DIR}/ignore.c
         ${SOURCE_DIR}/image.c
         ${SOURCE_DIR}/in_sdl2.c
+        ${SOURCE_DIR}/in_touch.c
         ${SOURCE_DIR}/irc.c
         ${SOURCE_DIR}/irc_filter.c
         ${SOURCE_DIR}/keys.c
@@ -998,6 +1003,7 @@ set(ezquake_sources
 
 if(EZQUAKE_ANDROID)
     add_library(ezquake SHARED ${ezquake_sources})
+    target_compile_definitions(ezquake PRIVATE $<$<CONFIG:Release>:EZQUAKE_ANDROID_RELEASE>)
 else()
     add_executable(ezquake ${TARGET_TYPE} ${ezquake_sources})
 endif()

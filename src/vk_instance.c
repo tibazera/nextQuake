@@ -33,10 +33,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // VK_EXT_debug_report extension to get debug messages 
 #define EZ_MAX_ADDITIONAL_EXTENSIONS 1
 
+#ifndef EZQUAKE_ANDROID_RELEASE
 static const char* validationLayers[] = { "VK_LAYER_KHRONOS_validation" };
+#endif
 
 static qbool VK_AddValidationLayers(VkInstanceCreateInfo* createInfo)
 {
+#ifdef EZQUAKE_ANDROID_RELEASE
+    createInfo->enabledLayerCount = 0;
+    return false;
+#else
 	VkLayerProperties* availableLayers = NULL;
 
 	createInfo->enabledLayerCount = 0;
@@ -74,6 +80,7 @@ static qbool VK_AddValidationLayers(VkInstanceCreateInfo* createInfo)
 	}
 
 	return false;
+#endif
 }
 
 qbool VK_CreateInstance(SDL_Window* window, VkInstance* instance)

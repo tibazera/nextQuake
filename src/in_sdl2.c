@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "input.h"
 #include "keys.h"
 #include "movie.h"
+#include "in_touch.h"
 
 #ifndef _WIN32
 #include <sys/time.h>
@@ -557,6 +558,7 @@ void IN_Move (usercmd_t *cmd)
 {
 	IN_MouseMove (cmd);
 	IN_JoyMove (cmd);
+	IN_TouchMove (cmd);
 }
 
 void IN_Init (void)
@@ -569,6 +571,7 @@ void IN_Init (void)
 	Cvar_ResetCurrentGroup ();
 
 	if (!host_initialized) {
+		IN_TouchInit();
 		Cmd_AddCommand("in_restart", IN_Restart_f);
 	}
 

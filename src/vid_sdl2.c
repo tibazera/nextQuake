@@ -54,6 +54,7 @@ void Sys_ActiveAppChanged (void);
 #include "keys.h"
 #include "tr_types.h"
 #include "input.h"
+#include "in_touch.h"
 #include "rulesets.h"
 #include "utils.h"
 #include "textencoding.h"
@@ -318,8 +319,33 @@ cvar_t vid_framebuffer_sshotmode   = {"vid_framebuffer_sshotmode",     "0" };
 cvar_t vid_framebuffer_multisample = {"vid_framebuffer_multisample",   "0" };
 cvar_t vid_framebuffer_fxaa        = {"vid_framebuffer_fxaa",          "0" };
 cvar_t vid_vulkan_antilag          = {"vid_vulkan_antilag",            "0" };
+// Vulkan performance paths; each can be set to 0 to fall back to the original behaviour.
+cvar_t vk_opt_static_index         = {"vk_opt_static_index",           "1" };
+cvar_t vk_opt_sky_cache            = {"vk_opt_sky_cache",              "1" };
+cvar_t vk_opt_bind_cache           = {"vk_opt_bind_cache",             "1" };
+cvar_t vk_opt_texture_nowait       = {"vk_opt_texture_nowait",         "1" };
+cvar_t vk_opt_world_outline        = {"vk_opt_world_outline",          "1" };
+cvar_t vk_outline_scale            = {"vk_outline_scale",              "0.5", CVAR_LATCH_GFX };
+cvar_t vk_profile                  = {"vk_profile",                    "0" };
+#if defined(__ANDROID__) && defined(RENDERER_OPTION_VULKAN)
+// Chosen render height in pixels (0 = default 1080p cap); the menu "Resolution" row sets it from a list
+// built from the detected display (see VID_AndroidBuildResolutionList). The compositor upscales.
+extern void VK_AndroidSetRenderHeight(int height);
+static void vid_android_resolution_callback(cvar_t *var, char *string, qbool *cancel)
+{
+	int height = Q_atoi(string);
+
+	VK_AndroidSetRenderHeight(height <= 0 ? 0 : bound(240, height, 4096));
+}
+cvar_t vid_android_resolution      = {"vid_android_resolution",        "0",       CVAR_SILENT, vid_android_resolution_callback };
+#endif
 
 #ifdef __ANDROID__
+#define VID_ANDROID_MAX_RES 10
+static int android_res_w[VID_ANDROID_MAX_RES];
+static int android_res_h[VID_ANDROID_MAX_RES];
+static int android_res_count;
+
 static void VID_SDL_NormalizeLandscapeSize(int *width, int *height)
 {
 	if (width && height && *width > 0 && *height > 0 && *width < *height) {
@@ -435,6 +461,10 @@ static void in_grab_windowed_mouse_callback(cvar_t *val, char *value, qbool *can
 }
 
 #ifdef __ANDROID__
+#ifdef EZQUAKE_ANDROID_RELEASE
+#define IN_AndroidDiagnosticsEnabled() (false)
+#define IN_AndroidDiagnosticPrintf(...) ((void)0)
+#else
 static qbool IN_AndroidDiagnosticsEnabled(void)
 {
 	return in_android_diagnostics.integer || developer.integer >= 2;
@@ -456,6 +486,7 @@ static void IN_AndroidDiagnosticPrintf(const char *fmt, ...)
 	SDL_Log("%s", text);
 	Com_Printf("%s\n", text);
 }
+#endif
 #endif
 
 static void GrabMouse(qbool grab, qbool raw)
@@ -858,7 +889,7 @@ static void keyb_textinputevent(const char* text)
 	wchar unichar = 0;
 
 	// Only process text input messages here
-	if (key_dest != key_console && key_dest != key_message)
+	if (!IN_TouchConsoleActive() && key_dest != key_message)
 		return;
 
 	if (!*text)
@@ -891,9 +922,19 @@ static void IN_UpdateTextInputState(void)
 {
 #ifdef __ANDROID__
 	bool active = SDL_TextInputActive(sdl_window);
+	bool want = IN_TouchWantsTextInput();
 
-	if (active) {
+	if (IN_TouchConsumeKeyboardNudge() && want) {
 		SDL_StopTextInput(sdl_window);
+		active = false;
+	}
+	if (want && !active) {
+		SDL_SetHintWithPriority(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "1", SDL_HINT_OVERRIDE);
+		SDL_StartTextInput(sdl_window);
+	}
+	else if (!want && active) {
+		SDL_StopTextInput(sdl_window);
+		SDL_SetHintWithPriority(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "0", SDL_HINT_OVERRIDE);
 	}
 #endif
 }
@@ -1069,6 +1110,11 @@ static void HandleEvents(void)
 #ifdef __ANDROID__
 			IN_AndroidDiagnosticPrintf("android input: key%s scan=%d sym=%d mod=%d repeat=%d mapped=%d", event.type == SDL_KEYDOWN ? "down" : "up", event.key.scancode, event.key.key, event.key.mod, event.key.repeat, IN_KeyboardEventToQuakeCode(&event.key));
 #endif
+#ifdef __ANDROID__
+			if (!IN_TouchWantsTextInput()) {
+				IN_TouchPhysicalInput(true);
+			}
+#endif
 			keyb_event(&event.key);
 			break;
 		case SDL_TEXTINPUT:
@@ -1078,6 +1124,11 @@ static void HandleEvents(void)
 			keyb_textinputevent(event.text.text);
 			break;
 		case SDL_MOUSEMOTION:
+#ifdef __ANDROID__
+			if (event.motion.which != SDL_TOUCH_MOUSEID) {
+				IN_TouchPhysicalInput(false);
+			}
+#endif
 			if (event.motion.which != SDL_TOUCH_MOUSEID || !in_ignore_touch_events.integer) {
 #ifdef __APPLE__
 				if (developer.integer == 2) {
@@ -1100,6 +1151,11 @@ static void HandleEvents(void)
 			break;
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
+#ifdef __ANDROID__
+			if (event.button.which != SDL_TOUCH_MOUSEID) {
+				IN_TouchPhysicalInput(false);
+			}
+#endif
 #ifdef __APPLE__
 			if (developer.integer == 2) {
 				Con_Printf("mouse%s event, which=%d, button=%d\n", event.type == SDL_MOUSEBUTTONDOWN ? "down" : "up", event.button.which, event.button.button);
@@ -1120,6 +1176,17 @@ static void HandleEvents(void)
 				mouse_wheel_event(&event.wheel);
 			}
 			break;
+#ifdef __ANDROID__
+		case SDL_EVENT_FINGER_DOWN:
+		case SDL_EVENT_FINGER_MOTION:
+		case SDL_EVENT_FINGER_UP:
+		case SDL_EVENT_FINGER_CANCELED:
+			IN_TouchFinger(event.type == SDL_EVENT_FINGER_DOWN ? IN_TOUCH_DOWN :
+			               event.type == SDL_EVENT_FINGER_MOTION ? IN_TOUCH_MOTION :
+			               event.type == SDL_EVENT_FINGER_UP ? IN_TOUCH_UP : IN_TOUCH_CANCEL,
+			               (long long)event.tfinger.fingerID, event.tfinger.x, event.tfinger.y, event.tfinger.dx, event.tfinger.dy);
+			break;
+#endif
 		case SDL_DROPFILE:
 			/* TODO: Add handling for different file types */
 			if (strncmp(event.drop.data, "qw://", 5) == 0) {
@@ -1133,6 +1200,7 @@ static void HandleEvents(void)
 		}
 	}
 
+	IN_TouchFrame();
 	IN_UpdateTextInputState();
 
 	if (track_movement_through_state) {
@@ -1327,6 +1395,16 @@ void VID_RegisterCvars(void)
 	Cvar_Register(&vid_framebuffer_multisample);
 	Cvar_Register(&vid_framebuffer_fxaa);
 	Cvar_Register(&vid_vulkan_antilag);
+	Cvar_Register(&vk_opt_static_index);
+	Cvar_Register(&vk_opt_sky_cache);
+	Cvar_Register(&vk_opt_bind_cache);
+	Cvar_Register(&vk_opt_texture_nowait);
+	Cvar_Register(&vk_opt_world_outline);
+	Cvar_Register(&vk_outline_scale);
+	Cvar_Register(&vk_profile);
+#if defined(__ANDROID__) && defined(RENDERER_OPTION_VULKAN)
+	Cvar_Register(&vid_android_resolution);
+#endif
 
 	Cvar_Register(&vid_reload_auto);
 
@@ -1349,9 +1427,88 @@ SDL_DisplayID VID_SDL_DisplayID(qbool fullscreen)
 	return VID_SDL_DisplayIDFromIndex(VID_DisplayNumber(fullscreen));
 }
 
+#ifdef __ANDROID__
+// Resolutions offered in the menu: the display's native size plus standard
+// heights below it, all in the display's aspect ratio. Rebuilt at every video
+// start from the detected display, so each device gets its own list.
+static void VID_AndroidBuildResolutionList(void)
+{
+	static const int heights[] = { 1440, 1200, 1080, 900, 720, 600, 540, 480, 360 };
+	const SDL_DisplayMode *mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+	int nativeW, nativeH, i;
+
+	android_res_count = 0;
+	if (!mode || mode->w <= 0 || mode->h <= 0) {
+		return;
+	}
+	nativeW = mode->w;
+	nativeH = mode->h;
+	VID_SDL_NormalizeLandscapeSize(&nativeW, &nativeH);
+
+	android_res_w[0] = nativeW;
+	android_res_h[0] = nativeH;
+	android_res_count = 1;
+	for (i = 0; i < (int)(sizeof(heights) / sizeof(heights[0])) && android_res_count < VID_ANDROID_MAX_RES; ++i) {
+		if (heights[i] < nativeH) {
+			android_res_h[android_res_count] = heights[i];
+			android_res_w[android_res_count] = ((int)((double)heights[i] * nativeW / nativeH + 0.5)) & ~1;
+			++android_res_count;
+		}
+	}
+	Com_Printf("android video: display %dx%d, %d resolutions offered\n", nativeW, nativeH, android_res_count);
+}
+
+// Index into the list for the current cvar value; -1 = auto (default cap).
+static int VID_AndroidCurrentResolution(void)
+{
+	int i;
+
+	for (i = 0; i < android_res_count; ++i) {
+		if (android_res_h[i] == vid_android_resolution.integer) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+const char* VID_AndroidResolutionRead(void)
+{
+	static char buf[48];
+	int index = VID_AndroidCurrentResolution();
+
+	if (index >= 0) {
+		snprintf(buf, sizeof(buf), "%dx%d", android_res_w[index], android_res_h[index]);
+	}
+	else if (android_res_count > 0) {
+		double scale = min(1.0, min(1920.0 / android_res_w[0], 1080.0 / android_res_h[0]));
+
+		snprintf(buf, sizeof(buf), "Auto (%dx%d)", (int)(android_res_w[0] * scale + 0.5), (int)(android_res_h[0] * scale + 0.5));
+	}
+	else {
+		snprintf(buf, sizeof(buf), "Auto");
+	}
+	return buf;
+}
+
+// Order: Auto, then the list from the lowest resolution up to native.
+void VID_AndroidResolutionToggle(qbool back)
+{
+	int position = VID_AndroidCurrentResolution();   // -1 auto
+	int slots = android_res_count + 1;
+	int slot = position < 0 ? 0 : android_res_count - position;
+
+	if (android_res_count <= 0) {
+		return;
+	}
+	slot = (slot + (back ? -1 : 1) + slots) % slots;
+	Cvar_SetValue(&vid_android_resolution, slot == 0 ? 0 : android_res_h[android_res_count - slot]);
+}
+#endif
+
 static void VID_SetupModeList(void)
 {
 #ifdef __ANDROID__
+	VID_AndroidBuildResolutionList();
 	// The Android activity surface has no concept of selectable fullscreen
 	// display modes -- it's always exactly one size, set by the system. Skip
 	// the desktop multi-mode-list query entirely instead of letting it fail

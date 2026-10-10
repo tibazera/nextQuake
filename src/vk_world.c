@@ -29,11 +29,17 @@ of the License, or (at your option) any later version.
 #include "glsl/constants.glsl"
 #include "tr_types.h"
 #include "vk_local.h"
+#include "vk_profile.h"
 
 extern const unsigned char vk_world_flat_vert_spv[];
 extern const unsigned int vk_world_flat_vert_spv_len;
 extern const unsigned char vk_world_flat_frag_spv[];
 extern const unsigned int vk_world_flat_frag_spv_len;
+extern const unsigned char vk_world_normals_vert_spv[];
+extern const unsigned int vk_world_normals_vert_spv_len;
+extern const unsigned char vk_world_normals_frag_spv[];
+extern const unsigned int vk_world_normals_frag_spv_len;
+extern cvar_t r_farclip;
 extern const unsigned char vk_world_textured_vert_spv[];
 extern const unsigned int vk_world_textured_vert_spv_len;
 extern const unsigned char vk_world_textured_frag_spv[];
@@ -79,6 +85,7 @@ typedef struct vk_world_draw_s {
 	qbool blended;
 	qbool detail;
 	qbool polygonOffset;
+	qbool staticIndex; // firstIndex refers to worldStaticIndexBuffer, not the per-frame dynamic one
 	int overlayMode;
 } vk_world_draw_t;
 
@@ -109,6 +116,18 @@ typedef struct vk_world_push_s {
 	float padding[4];
 } vk_world_push_t;
 
+// Must match the push_constant block in vk_world_normals.vert /
+// vk_world_normals.frag exactly (88 bytes, within the 128-byte minimum).
+typedef struct vk_world_normals_push_s {
+	float mvp[16];
+	float cameraPosition[4];
+	float surfaceType;
+	float zFar;
+} vk_world_normals_push_t;
+
+static VkPipelineLayout worldNormalsPipelineLayout;
+static VkPipeline worldNormalsPipeline;
+
 static VkPipelineLayout worldFlatPipelineLayout;
 static VkPipeline worldFlatPipeline;
 static VkDescriptorSetLayout worldFlatSkyDescriptorSetLayout;
@@ -136,6 +155,24 @@ static vk_world_draw_t* worldDraws;
 static int worldDrawCount;
 static int worldDrawCapacity;
 static uint32_t worldIndexCount;
+static uint32_t worldFrameStamp = 1;
+static uint32_t worldSkyDescriptorStamp[VK_MAX_FRAMES_IN_FLIGHT];
+
+// Optional optimisations, each with a cvar so it can be switched off
+// (back to the original per-frame path) if it misbehaves on a device.
+extern cvar_t vk_opt_static_index, vk_opt_sky_cache;
+
+// Immutable per-map index pool: every world surface's triangle-strip indices
+// (primitive restart between polys) built once instead of per visible
+// surface per frame. Never written after creation, so frames in flight can
+// share it without per-slot copies.
+static VkBuffer worldStaticIndexBuffer = VK_NULL_HANDLE;
+static VkDeviceMemory worldStaticIndexMemory = VK_NULL_HANDLE;
+static uint32_t* worldStaticFirst;
+static uint32_t* worldStaticCount;
+static uint32_t* worldStaticVboStart; // first poly's vbo_start at build time, detects a VBO rebuild
+static msurface_t* worldStaticSurfaces;
+static unsigned int worldStaticSurfaceCount;
 
 #define VK_WORLD_OVERLAY_NONE       0
 #define VK_WORLD_OVERLAY_LUMA       1
@@ -318,6 +355,12 @@ static qbool VK_WorldFlatSkyDescriptorSet(VkDescriptorSet* descriptorSet)
 	if (frameIndex >= VK_MAX_FRAMES_IN_FLIGHT || !descriptorSet || !VK_WorldEnsureFlatSkyDescriptorSet()) {
 		return false;
 	}
+	// Sky textures don't change mid-frame: rewrite this frame slot's set
+	// once per frame instead of on every flat/sky draw.
+	if (vk_opt_sky_cache.integer && worldSkyDescriptorStamp[frameIndex] == worldFrameStamp) {
+		*descriptorSet = worldFlatSkyDescriptorSets[frameIndex];
+		return true;
+	}
 
 	textures[0] = VK_TextureReady(solidskytexture) ? solidskytexture : solidwhite_texture;
 	textures[1] = VK_TextureReady(alphaskytexture) ? alphaskytexture : transparent_texture;
@@ -341,6 +384,7 @@ static qbool VK_WorldFlatSkyDescriptorSet(VkDescriptorSet* descriptorSet)
 	}
 
 	vkUpdateDescriptorSets(vk_options.logicalDevice, VK_WORLD_SKY_TEXTURE_COUNT, descriptorWrites, 0, NULL);
+	worldSkyDescriptorStamp[frameIndex] = worldFrameStamp;
 	*descriptorSet = worldFlatSkyDescriptorSets[frameIndex];
 	return true;
 }
@@ -490,12 +534,130 @@ static texture_ref VK_WorldLightmapTextureForSurface(msurface_t* surf)
 	return VK_TextureReady(lightmap) ? lightmap : null_texture_reference;
 }
 
+static void VK_WorldStaticIndexFree(void)
+{
+	if (worldStaticIndexBuffer != VK_NULL_HANDLE || worldStaticIndexMemory != VK_NULL_HANDLE) {
+		if (vk_options.logicalDevice != VK_NULL_HANDLE) {
+			vkDeviceWaitIdle(vk_options.logicalDevice);
+			if (worldStaticIndexBuffer != VK_NULL_HANDLE) {
+				vkDestroyBuffer(vk_options.logicalDevice, worldStaticIndexBuffer, NULL);
+			}
+			if (worldStaticIndexMemory != VK_NULL_HANDLE) {
+				vkFreeMemory(vk_options.logicalDevice, worldStaticIndexMemory, NULL);
+			}
+		}
+	}
+	worldStaticIndexBuffer = VK_NULL_HANDLE;
+	worldStaticIndexMemory = VK_NULL_HANDLE;
+	Q_free(worldStaticFirst);
+	Q_free(worldStaticCount);
+	Q_free(worldStaticVboStart);
+	worldStaticSurfaces = NULL;
+	worldStaticSurfaceCount = 0;
+}
+
+// Same stream VK_WorldAppendSurface produces, emitted into 'out' (NULL = just count).
+static uint32_t VK_WorldStaticSurfaceIndexes(msurface_t* surf, uint32_t* out)
+{
+	glpoly_t* poly;
+	uint32_t n = 0, polys = 0;
+	int i;
+
+	for (poly = surf->polys; poly; poly = poly->next) {
+		if (!poly->numverts) {
+			continue;
+		}
+		if (polys) {
+			if (out) {
+				out[n] = UINT32_MAX;
+			}
+			++n;
+		}
+		for (i = 0; i < poly->numverts; ++i) {
+			if (out) {
+				out[n] = poly->vbo_start + i;
+			}
+			++n;
+		}
+		++polys;
+	}
+	return n;
+}
+
+static void VK_WorldStaticIndexBuild(void)
+{
+	model_t* m = cl.worldmodel;
+	unsigned int s;
+	uint64_t total = 0;
+	uint32_t* data;
+	uint32_t pos = 0;
+	void* mapped = NULL;
+	VkDeviceSize size;
+
+	VK_WorldStaticIndexFree();
+	if (!vk_opt_static_index.integer || !m || !m->surfaces || !m->numsurfaces || vk_options.logicalDevice == VK_NULL_HANDLE) {
+		return;
+	}
+
+	for (s = 0; s < m->numsurfaces; ++s) {
+		total += VK_WorldStaticSurfaceIndexes(&m->surfaces[s], NULL);
+	}
+	if (!total || total > 0x3fffffffu) {
+		return;
+	}
+
+	data = Q_malloc((size_t)total * sizeof(data[0]));
+	worldStaticFirst = Q_malloc(m->numsurfaces * sizeof(worldStaticFirst[0]));
+	worldStaticCount = Q_malloc(m->numsurfaces * sizeof(worldStaticCount[0]));
+	worldStaticVboStart = Q_malloc(m->numsurfaces * sizeof(worldStaticVboStart[0]));
+	for (s = 0; s < m->numsurfaces; ++s) {
+		msurface_t* surf = &m->surfaces[s];
+
+		worldStaticFirst[s] = pos;
+		worldStaticCount[s] = VK_WorldStaticSurfaceIndexes(surf, data + pos);
+		worldStaticVboStart[s] = surf->polys ? surf->polys->vbo_start : 0;
+		pos += worldStaticCount[s];
+	}
+
+	size = (VkDeviceSize)total * sizeof(data[0]);
+	if (VK_CreateBufferResource(size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &worldStaticIndexBuffer, &worldStaticIndexMemory)
+		&& vkMapMemory(vk_options.logicalDevice, worldStaticIndexMemory, 0, size, 0, &mapped) == VK_SUCCESS) {
+		memcpy(mapped, data, (size_t)size);
+		vkUnmapMemory(vk_options.logicalDevice, worldStaticIndexMemory);
+		worldStaticSurfaces = m->surfaces;
+		worldStaticSurfaceCount = m->numsurfaces;
+	}
+	else {
+		VK_WorldStaticIndexFree();
+	}
+	Q_free(data);
+}
+
+static qbool VK_WorldStaticLookup(msurface_t* surf, uint32_t* first, uint32_t* count)
+{
+	size_t s;
+
+	if (worldStaticIndexBuffer == VK_NULL_HANDLE || !vk_opt_static_index.integer || surf < worldStaticSurfaces) {
+		return false;
+	}
+	s = (size_t)(surf - worldStaticSurfaces);
+	if (s >= worldStaticSurfaceCount || (surf->polys ? surf->polys->vbo_start : 0) != worldStaticVboStart[s]) {
+		return false;
+	}
+	*first = worldStaticFirst[s];
+	*count = worldStaticCount[s];
+	return true;
+}
+
 static void VK_WorldQueueSurface(model_t* model, msurface_t* surf, qbool drawflat, texture_t* materialTexture, texture_ref texture, float alpha, qbool blended, const float* modelView, qbool polygonOffset)
 {
 	uint32_t firstIndex;
 	uint32_t emittedPolys = 0;
 	vk_world_draw_t* draw;
 	texture_ref lightmap;
+
+	uint32_t staticFirst = 0, staticCount = 0;
+	qbool staticIndex = false;
 
 	if (!model || !surf || !modelIndexes || modelIndexMaximum == 0 || !VK_WorldEnsureDrawCapacity()) {
 		VK_WorldDebugLog(
@@ -508,19 +670,26 @@ static void VK_WorldQueueSurface(model_t* model, msurface_t* surf, qbool drawfla
 		return;
 	}
 
+	staticIndex = VK_WorldStaticLookup(surf, &staticFirst, &staticCount);
 	firstIndex = worldIndexCount;
-	if (!VK_WorldAppendSurface(surf, &emittedPolys)) {
+	if (staticIndex) {
+		if (!staticCount) {
+			return;
+		}
+	}
+	else if (!VK_WorldAppendSurface(surf, &emittedPolys)) {
 		VK_WorldDebugLog("queue surface overflow model=%s surface=%d indices=%u max=%u", model->name, surf->surfacenum, worldIndexCount, modelIndexMaximum);
 	}
-	if (worldIndexCount == firstIndex) {
+	if (!staticIndex && worldIndexCount == firstIndex) {
 		VK_WorldDebugLog("queue surface empty model=%s surface=%d", model->name, surf->surfacenum);
 		return;
 	}
 
 	lightmap = VK_WorldLightmapTextureForSurface(surf);
 	draw = &worldDraws[worldDrawCount++];
-	draw->firstIndex = firstIndex;
-	draw->indexCount = worldIndexCount - firstIndex;
+	draw->staticIndex = staticIndex;
+	draw->firstIndex = staticIndex ? staticFirst : firstIndex;
+	draw->indexCount = staticIndex ? staticCount : worldIndexCount - firstIndex;
 	memcpy(draw->modelView, modelView, sizeof(draw->modelView));
 	draw->texture = texture;
 	draw->lightmap = lightmap;
@@ -1521,9 +1690,196 @@ static qbool VK_WorldCreateLightmappedPipeline(void)
 	return worldLightmappedPipeline != VK_NULL_HANDLE;
 }
 
+// Minimal position-only pipeline for the gl_outline & 2 normals prepass.
+// Belongs to vk_renderpass_worldnormals (always single-sample, its own
+// depth), NOT the main render pass -- hence the hardcoded
+// VK_SAMPLE_COUNT_1_BIT instead of vk_options.msaaSamples that every other
+// pipeline in this file uses. No descriptor sets: the fragment shader only
+// needs the interpolated world position and the push block.
+static qbool VK_WorldCreateNormalsPipeline(void)
+{
+	VkShaderModule vertShaderModule;
+	VkShaderModule fragShaderModule;
+	VkPipelineShaderStageCreateInfo shaderStages[2];
+	VkVertexInputBindingDescription bindingDescription;
+	VkVertexInputAttributeDescription attributeDescription;
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo;
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly;
+	VkPipelineViewportStateCreateInfo viewportState;
+	VkPipelineRasterizationStateCreateInfo rasterizer;
+	VkPipelineMultisampleStateCreateInfo multisampling;
+	VkPipelineDepthStencilStateCreateInfo depthStencil;
+	VkPipelineColorBlendAttachmentState colorBlendAttachment;
+	VkPipelineColorBlendStateCreateInfo colorBlending;
+	VkDynamicState dynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VkPipelineDynamicStateCreateInfo dynamicState;
+	VkPushConstantRange pushConstantRange;
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo;
+	VkGraphicsPipelineCreateInfo pipelineInfo;
+	VkRenderPass renderPass;
+
+	if (worldNormalsPipeline != VK_NULL_HANDLE) {
+		return true;
+	}
+
+	renderPass = VK_WorldNormalsRenderPass();
+	if (renderPass == VK_NULL_HANDLE) {
+		return false;
+	}
+
+	vertShaderModule = VK_WorldCreateShaderModule(vk_world_normals_vert_spv, vk_world_normals_vert_spv_len);
+	fragShaderModule = VK_WorldCreateShaderModule(vk_world_normals_frag_spv, vk_world_normals_frag_spv_len);
+	if (vertShaderModule == VK_NULL_HANDLE || fragShaderModule == VK_NULL_HANDLE) {
+		if (fragShaderModule != VK_NULL_HANDLE) {
+			vkDestroyShaderModule(vk_options.logicalDevice, fragShaderModule, NULL);
+		}
+		if (vertShaderModule != VK_NULL_HANDLE) {
+			vkDestroyShaderModule(vk_options.logicalDevice, vertShaderModule, NULL);
+		}
+		return false;
+	}
+
+	VK_InitialiseStructure(shaderStages[0]);
+	shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shaderStages[0].module = vertShaderModule;
+	shaderStages[0].pName = "main";
+
+	VK_InitialiseStructure(shaderStages[1]);
+	shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shaderStages[1].module = fragShaderModule;
+	shaderStages[1].pName = "main";
+
+	// Same vertex buffer and stride as every other world pipeline -- only the
+	// position attribute is bound, so the normals pass can reuse the exact
+	// buffers/indices the main loop already uploaded without a second copy.
+	VK_InitialiseStructure(bindingDescription);
+	bindingDescription.binding = 0;
+	bindingDescription.stride = sizeof(vbo_world_vert_t);
+	bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	VK_InitialiseStructure(attributeDescription);
+	attributeDescription.binding = 0;
+	attributeDescription.location = 0;
+	attributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	attributeDescription.offset = VK_VBO_FIELDOFFSET(vbo_world_vert_t, position);
+
+	VK_InitialiseStructure(vertexInputInfo);
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputInfo.vertexAttributeDescriptionCount = 1;
+	vertexInputInfo.pVertexAttributeDescriptions = &attributeDescription;
+
+	// Same topology/restart as the main world pipelines -- the index buffer
+	// being reused is built with UINT32_MAX restart separators.
+	VK_InitialiseStructure(inputAssembly);
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+	inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+	VK_InitialiseStructure(viewportState);
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount = 1;
+	viewportState.scissorCount = 1;
+
+	VK_InitialiseStructure(rasterizer);
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.lineWidth = 1.0f;
+	rasterizer.cullMode = VK_CULL_MODE_NONE;
+	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	// No depth bias here (unlike the main world pipelines): polygonOffset only
+	// exists to stop brush-model entities z-fighting the world surface they're
+	// flush against in the *visible* image. In the normals buffer a 1-pixel
+	// z-fight between two surfaces with near-identical normals produces no
+	// edge either way, so the dynamic state is simply not needed.
+	rasterizer.depthBiasEnable = VK_FALSE;
+
+	VK_InitialiseStructure(multisampling);
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	VK_InitialiseStructure(depthStencil);
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+	depthStencil.depthCompareOp = glConfig.reversed_depth ? VK_COMPARE_OP_GREATER_OR_EQUAL : VK_COMPARE_OP_LESS_OR_EQUAL;
+
+	VK_InitialiseStructure(colorBlendAttachment);
+	colorBlendAttachment.colorWriteMask =
+		VK_COLOR_COMPONENT_R_BIT |
+		VK_COLOR_COMPONENT_G_BIT |
+		VK_COLOR_COMPONENT_B_BIT |
+		VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachment.blendEnable = VK_FALSE;
+
+	VK_InitialiseStructure(colorBlending);
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &colorBlendAttachment;
+
+	VK_InitialiseStructure(dynamicState);
+	dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	dynamicState.dynamicStateCount = sizeof(dynamicStates) / sizeof(dynamicStates[0]);
+	dynamicState.pDynamicStates = dynamicStates;
+
+	if (worldNormalsPipelineLayout == VK_NULL_HANDLE) {
+		VK_InitialiseStructure(pushConstantRange);
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(vk_world_normals_push_t);
+
+		VK_InitialiseStructure(pipelineLayoutInfo);
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = 0;
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+		if (vkCreatePipelineLayout(vk_options.logicalDevice, &pipelineLayoutInfo, NULL, &worldNormalsPipelineLayout) != VK_SUCCESS) {
+			vkDestroyShaderModule(vk_options.logicalDevice, fragShaderModule, NULL);
+			vkDestroyShaderModule(vk_options.logicalDevice, vertShaderModule, NULL);
+			return false;
+		}
+	}
+
+	VK_InitialiseStructure(pipelineInfo);
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.stageCount = 2;
+	pipelineInfo.pStages = shaderStages;
+	pipelineInfo.pVertexInputState = &vertexInputInfo;
+	pipelineInfo.pInputAssemblyState = &inputAssembly;
+	pipelineInfo.pViewportState = &viewportState;
+	pipelineInfo.pRasterizationState = &rasterizer;
+	pipelineInfo.pMultisampleState = &multisampling;
+	pipelineInfo.pDepthStencilState = &depthStencil;
+	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.pDynamicState = &dynamicState;
+	pipelineInfo.layout = worldNormalsPipelineLayout;
+	pipelineInfo.renderPass = renderPass;
+	pipelineInfo.subpass = 0;
+
+	if (vkCreateGraphicsPipelines(vk_options.logicalDevice, vk_options.pipelineCache, 1, &pipelineInfo, NULL, &worldNormalsPipeline) != VK_SUCCESS) {
+		worldNormalsPipeline = VK_NULL_HANDLE;
+	}
+
+	vkDestroyShaderModule(vk_options.logicalDevice, fragShaderModule, NULL);
+	vkDestroyShaderModule(vk_options.logicalDevice, vertShaderModule, NULL);
+	return worldNormalsPipeline != VK_NULL_HANDLE;
+}
+
 void VK_WorldResourcesShutdown(void)
 {
+	VK_WorldStaticIndexFree();
 	if (vk_options.logicalDevice != VK_NULL_HANDLE) {
+		if (worldNormalsPipeline != VK_NULL_HANDLE) {
+			vkDestroyPipeline(vk_options.logicalDevice, worldNormalsPipeline, NULL);
+			worldNormalsPipeline = VK_NULL_HANDLE;
+		}
+		if (worldNormalsPipelineLayout != VK_NULL_HANDLE) {
+			vkDestroyPipelineLayout(vk_options.logicalDevice, worldNormalsPipelineLayout, NULL);
+			worldNormalsPipelineLayout = VK_NULL_HANDLE;
+		}
 		if (worldFlatPipeline != VK_NULL_HANDLE) {
 			vkDestroyPipeline(vk_options.logicalDevice, worldFlatPipeline, NULL);
 			worldFlatPipeline = VK_NULL_HANDLE;
@@ -1596,6 +1952,7 @@ void VK_PrepareModelRendering(qbool vid_restart)
 		R_CreateInstanceVBO();
 		R_CreateAliasModelVBO();
 		R_BrushModelCreateVBO();
+		VK_WorldStaticIndexBuild();
 		VK_WorldDebugLog(
 			"prepare map=%s maxIndexes=%u vboValid=%d vboSize=%u iboValid=%d iboSize=%u",
 			cl.worldmodel->name,
@@ -1612,6 +1969,7 @@ void VK_PrepareModelRendering(qbool vid_restart)
 
 void VK_PreRenderView(void)
 {
+	++worldFrameStamp;
 	worldDrawCount = 0;
 	worldIndexCount = 0;
 	VK_AliasModelFrameReset();
@@ -1799,6 +2157,135 @@ static void VK_WorldBindIfChanged(VkCommandBuffer commandBuffer, VkPipeline pipe
 	}
 }
 
+// gl_outline & 2: reopens the main render pass after the normals prepass has
+// interrupted it. On this branch the main pass always clears (no LOAD
+// variant), which is lossless here: VK_RenderView ends the pass before any
+// world geometry is drawn, so the first instance held nothing but its clear.
+// Uses the same render pass, framebuffer choice and clear values as
+// VK_BeginFrame.
+static void VK_WorldReopenMainRenderPass(VkCommandBuffer commandBuffer)
+{
+	VkRenderPassBeginInfo renderPassInfo = { 0 };
+	VkClearValue clearValues[2] = { { { { 0 } } } };
+	uint32_t imageIndex = vk_options.frame.imageIndex;
+
+	clearValues[0].color.float32[0] = vk_options.clearColor[0];
+	clearValues[0].color.float32[1] = vk_options.clearColor[1];
+	clearValues[0].color.float32[2] = vk_options.clearColor[2];
+	clearValues[0].color.float32[3] = vk_options.clearColor[3] ? vk_options.clearColor[3] : 1.0f;
+	clearValues[1].depthStencil.depth = glConfig.reversed_depth ? 0.0f : 1.0f;
+	clearValues[1].depthStencil.stencil = 0;
+
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = VK_MainRenderPass();
+	renderPassInfo.framebuffer = vk_options.swapChain.postProcessActive ?
+		VK_PostProcessFramebuffer(imageIndex) : vk_options.swapChain.framebuffers[imageIndex];
+	if (renderPassInfo.framebuffer == VK_NULL_HANDLE) {
+		renderPassInfo.framebuffer = vk_options.swapChain.framebuffers[imageIndex];
+	}
+	renderPassInfo.renderArea.offset.x = 0;
+	renderPassInfo.renderArea.offset.y = 0;
+	renderPassInfo.renderArea.extent = vk_options.swapChain.imageSize;
+	renderPassInfo.clearValueCount = sizeof(clearValues) / sizeof(clearValues[0]);
+	renderPassInfo.pClearValues = clearValues;
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+// gl_outline & 2 normals prepass: redraws the opaque world position-only into
+// a small single-sample pass (normal + linear depth, see vk_world_normals.frag)
+// that the outline composite samples later. Called with the main render pass
+// already ended by the caller. Returns false if unavailable, in which case the
+// caller must reopen the main pass anyway.
+static qbool VK_DrawWorldNormalsPass(VkCommandBuffer commandBuffer, VkBuffer vertexBuffer, VkBuffer indexBuffer)
+{
+	VkRenderPassBeginInfo renderPassInfo = { 0 };
+	VkClearValue clearValues[2] = { { { { 0 } } } };
+	VkFramebuffer framebuffer;
+	VkViewport viewport = { 0 };
+	VkRect2D scissor = { 0 };
+	VkDeviceSize vertexOffset = 0;
+	float lastModelView[16];
+	float lastMvp[16];
+	qbool haveLastMvp = false;
+	qbool staticBound = false;
+	float zFar;
+	int i;
+
+	if (!VK_WorldCreateNormalsPipeline()) {
+		return false;
+	}
+
+	framebuffer = VK_WorldNormalsFramebuffer(vk_options.frame.imageIndex);
+	if (framebuffer == VK_NULL_HANDLE) {
+		return false;
+	}
+
+	zFar = bound(R_MINIMUM_FARCLIP, r_farclip.value, R_MAXIMUM_FARCLIP);
+
+	// Colour clears to zero: alpha 0 means "nothing drawn here" to the outline shader.
+	clearValues[1].depthStencil.depth = glConfig.reversed_depth ? 0.0f : 1.0f;
+	clearValues[1].depthStencil.stencil = 0;
+
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = VK_WorldNormalsRenderPass();
+	renderPassInfo.framebuffer = framebuffer;
+	renderPassInfo.renderArea.offset.x = 0;
+	renderPassInfo.renderArea.offset.y = 0;
+	renderPassInfo.renderArea.extent = vk_options.swapChain.worldNormalsSize;
+	renderPassInfo.clearValueCount = sizeof(clearValues) / sizeof(clearValues[0]);
+	renderPassInfo.pClearValues = clearValues;
+
+	vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+	viewport.width = (float)vk_options.swapChain.worldNormalsSize.width;
+	viewport.height = (float)vk_options.swapChain.worldNormalsSize.height;
+	viewport.maxDepth = 1.0f;
+	scissor.extent = vk_options.swapChain.worldNormalsSize;
+	vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+	vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+	vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, worldNormalsPipeline);
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &vertexOffset);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+	for (i = 0; i < worldDrawCount; ++i) {
+		vk_world_normals_push_t push;
+
+		// Opaque only, like GLM: water/alpha surfaces must not outline things seen through them.
+		if (worldDraws[i].blended) {
+			continue;
+		}
+
+		memset(&push, 0, sizeof(push));
+		if (haveLastMvp && memcmp(lastModelView, worldDraws[i].modelView, sizeof(lastModelView)) == 0) {
+			memcpy(push.mvp, lastMvp, sizeof(push.mvp));
+		}
+		else {
+			R_MultiplyMatrix(worldDraws[i].modelView, R_ProjectionMatrix(), push.mvp);
+			memcpy(lastModelView, worldDraws[i].modelView, sizeof(lastModelView));
+			memcpy(lastMvp, push.mvp, sizeof(lastMvp));
+			haveLastMvp = true;
+		}
+		push.cameraPosition[0] = r_refdef.vieworg[0];
+		push.cameraPosition[1] = r_refdef.vieworg[1];
+		push.cameraPosition[2] = r_refdef.vieworg[2];
+		push.cameraPosition[3] = 0.0f;
+		push.surfaceType = worldDraws[i].surfaceType;
+		push.zFar = zFar;
+
+		if (!!worldDraws[i].staticIndex != staticBound) {
+			staticBound = worldDraws[i].staticIndex;
+			vkCmdBindIndexBuffer(commandBuffer, staticBound ? worldStaticIndexBuffer : indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		}
+		vkCmdPushConstants(commandBuffer, worldNormalsPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
+		vkCmdDrawIndexed(commandBuffer, worldDraws[i].indexCount, 1, worldDraws[i].firstIndex, 0, 0);
+	}
+
+	vkCmdEndRenderPass(commandBuffer);
+	VK_WorldNormalsTransitionForSampling(commandBuffer, vk_options.frame.imageIndex);
+	return true;
+}
+
 void VK_RenderView(void)
 {
 	VkCommandBuffer commandBuffer;
@@ -1837,8 +2324,10 @@ void VK_RenderView(void)
 	VkPipeline lastBoundPipeline = VK_NULL_HANDLE;
 	VkDescriptorSet lastBoundDescriptorSets[3] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
 	int lastBoundDescriptorSetCount = 0;
+	qbool staticIndexBound = false;
+	qbool worldOutline = false;
 
-	if (!worldDrawCount || !worldIndexCount) {
+	if (!worldDrawCount) {
 		VK_WorldDebugLog("render skipped: draws=%d indices=%u", worldDrawCount, worldIndexCount);
 		return;
 	}
@@ -1901,13 +2390,33 @@ void VK_RenderView(void)
 		return;
 	}
 
-	buffers.Update(r_buffer_brushmodel_index_data, worldIndexCount * sizeof(modelIndexes[0]), modelIndexes);
+	if (VK_ProfileEnabled()) {
+		unsigned int staticDraws = 0;
+
+		for (i = 0; i < worldDrawCount; ++i) {
+			staticDraws += worldDraws[i].staticIndex ? 1 : 0;
+		}
+		VK_ProfileAddCount(VK_PROF_WORLD_DRAWS, worldDrawCount);
+		VK_ProfileAddCount(VK_PROF_WORLD_STATIC_DRAWS, staticDraws);
+		VK_ProfileAddCount(VK_PROF_WORLD_INDEXES_UPLOADED, worldIndexCount);
+	}
+	if (worldIndexCount) {
+		buffers.Update(r_buffer_brushmodel_index_data, worldIndexCount * sizeof(modelIndexes[0]), modelIndexes);
+	}
 
 	vertexBuffer = VK_BufferHandle(r_buffer_brushmodel_vertex_data);
 	indexBuffer = VK_BufferHandle(r_buffer_brushmodel_index_data);
 	if (vertexBuffer == VK_NULL_HANDLE || indexBuffer == VK_NULL_HANDLE) {
 		VK_WorldDebugLog("render skipped: null VkBuffer vertex=%p index=%p", (void*)vertexBuffer, (void*)indexBuffer);
 		return;
+	}
+
+	// gl_outline & 2: the earliest point where the draw list is ready but the
+	// main pass holds nothing yet. End it, draw the normals prepass, reopen.
+	if (VK_WorldOutlineActive()) {
+		vkCmdEndRenderPass(commandBuffer);
+		worldOutline = VK_DrawWorldNormalsPass(commandBuffer, vertexBuffer, indexBuffer);
+		VK_WorldReopenMainRenderPass(commandBuffer);
 	}
 
 	VK_WorldSetViewportScissor(commandBuffer);
@@ -1923,11 +2432,19 @@ void VK_RenderView(void)
 		qbool blendedPass = (pass != 0);
 
 		if (blendedPass) {
+			// Outline composite between the opaque world and everything after
+			// it (alias models, sprites, alpha surfaces), as GLM does.
+			if (worldOutline) {
+				VK_WorldOutlineComposite(commandBuffer, vk_options.frame.imageIndex);
+				lastBoundPipeline = VK_NULL_HANDLE;
+				lastBoundDescriptorSetCount = 0;
+			}
 			VK_RenderAliasModels(false);
 			VK_Draw3DSprites();
 			VK_WorldSetViewportScissor(commandBuffer);
 			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &vertexOffset);
 			vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			staticIndexBound = false;
 			// Alias models/sprites above issued their own pipeline/descriptor-set
 			// binds on this same command buffer; the world's bind cache no longer
 			// reflects reality, so drop it rather than risk a stale skip.
@@ -2059,6 +2576,10 @@ void VK_RenderView(void)
 			}
 
 			vkCmdPushConstants(commandBuffer, layout, pushStages, 0, sizeof(push), &push);
+			if (!!worldDraws[i].staticIndex != staticIndexBound) {
+				staticIndexBound = worldDraws[i].staticIndex;
+				vkCmdBindIndexBuffer(commandBuffer, staticIndexBound ? worldStaticIndexBuffer : indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			}
 			vkCmdDrawIndexed(commandBuffer, worldDraws[i].indexCount, 1, worldDraws[i].firstIndex, 0, 0);
 			if (VK_WorldDrawOverlay(commandBuffer, &worldDraws[i], &push, lumaPipelineReady, fullbrightPipelineReady)) {
 				lastBoundPipeline = VK_NULL_HANDLE;

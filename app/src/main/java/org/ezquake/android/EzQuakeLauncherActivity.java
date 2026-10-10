@@ -269,7 +269,44 @@ public class EzQuakeLauncherActivity extends Activity {
                 .show();
     }
 
+    // On-screen control artwork (Kenney "Mobile Controls", CC0) ships inside the
+    // APK; the engine loads it as loose files from <basedir>/ezquake/gfx/touch/.
+    private void extractTouchAssets() {
+        try {
+            File outDir = new File(BASEDIR, "ezquake/gfx/touch");
+            outDir.mkdirs();
+            String[] names = getAssets().list("touch");
+            if (names == null) {
+                return;
+            }
+            for (String name : names) {
+                File outFile = new File(outDir, name);
+                java.io.InputStream in = getAssets().open("touch/" + name);
+                try {
+                    if (outFile.isFile() && outFile.length() == in.available()) {
+                        continue;
+                    }
+                    java.io.OutputStream out = new java.io.FileOutputStream(outFile);
+                    try {
+                        byte[] buffer = new byte[16384];
+                        int read;
+                        while ((read = in.read(buffer)) > 0) {
+                            out.write(buffer, 0, read);
+                        }
+                    } finally {
+                        out.close();
+                    }
+                } finally {
+                    in.close();
+                }
+            }
+        } catch (Exception ignored) {
+            // artwork is optional: buttons fall back to plain circles with text
+        }
+    }
+
     private void startGameActivity() {
+        extractTouchAssets();
         startActivity(new Intent(this, EzQuakeActivity.class));
         finish();
     }

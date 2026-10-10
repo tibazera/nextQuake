@@ -1,5 +1,13 @@
 # Agente do projeto ezQuake Pocket Vulkan
 
+## Retomada mais recente — 2026-10-09, Codex
+
+Antes de retomar, leia a seção **Estado atual para Claude/Codex** no início de `continue.md` e a atualização mais recente de `docs/android-pocket-vulkan-handoff.md`. Elas descrevem o controle touch final e substituem as experiências intermediárias de movimento/mira e as notas antigas de funcionalidades não testadas.
+
+Não edite este worktree simultaneamente com outro agente/assistente. Nesta sessão houve sobreposição de edições do Claude que duplicou `vk_outline_scale`; o estado final tem uma definição latched, com padrão 0.5 e aplicação após `vid_restart`. Preserve o touch e as correções de IME já validados; não restaure patches antigos por cima do worktree.
+
+Tiago autorizou nesta sessão um commit local do estado recuperado. Essa autorização não inclui push/PR nem commits automáticos em sessões futuras.
+
 Este arquivo é a memória operacional compartilhada entre Codex, Claude e futuros colaboradores. Leia-o por inteiro antes de alterar qualquer arquivo. Leia também `docs/android-pocket-vulkan-handoff.md`.
 
 ## Regra mais importante

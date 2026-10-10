@@ -42,6 +42,7 @@ extern const unsigned int vk_alias_model_frag_spv_len;
 #define VK_ALIAS_BLEND_SHADOW    3
 
 extern cvar_t gl_powerupshells;
+extern cvar_t vk_opt_bind_cache;
 extern cvar_t gl_outline_color_model;
 extern cvar_t gl_outline_color_team;
 extern cvar_t gl_outline_color_enemy;
@@ -756,6 +757,8 @@ void VK_RenderAliasModels(qbool postscene)
 	int queuedWeapons = 0;
 	int queuedPlayers = 0;
 	int skippedTexture = 0;
+	VkPipeline lastAliasPipeline = VK_NULL_HANDLE;
+	VkDescriptorSet lastAliasDescriptorSet = VK_NULL_HANDLE;
 
 	if (!aliasDrawCount || !R_BufferReferenceIsValid(r_buffer_aliasmodel_vertex_data)) {
 		return;
@@ -817,15 +820,24 @@ void VK_RenderAliasModels(qbool postscene)
 		push.scrollT = draw->scrollT;
 		push.pad0 = 0.0f;
 
-		vkCmdBindPipeline(
-			commandBuffer,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			draw->blendMode == VK_ALIAS_BLEND_SHADOW ? aliasShadowPipeline :
-			draw->blendMode == VK_ALIAS_BLEND_ADDITIVE ? aliasAdditivePipeline :
-			draw->blendMode == VK_ALIAS_BLEND_ALPHA ? aliasBlendedPipeline :
-			aliasOpaquePipeline
-		);
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, aliasPipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+		{
+			// Consecutive models usually share pipeline and skin; skip the
+			// redundant binds (vk_opt_bind_cache 0 = always bind).
+			VkPipeline pipeline =
+				draw->blendMode == VK_ALIAS_BLEND_SHADOW ? aliasShadowPipeline :
+				draw->blendMode == VK_ALIAS_BLEND_ADDITIVE ? aliasAdditivePipeline :
+				draw->blendMode == VK_ALIAS_BLEND_ALPHA ? aliasBlendedPipeline :
+				aliasOpaquePipeline;
+
+			if (!vk_opt_bind_cache.integer || pipeline != lastAliasPipeline) {
+				vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+				lastAliasPipeline = pipeline;
+			}
+			if (!vk_opt_bind_cache.integer || descriptorSet != lastAliasDescriptorSet) {
+				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, aliasPipelineLayout, 0, 1, &descriptorSet, 0, NULL);
+				lastAliasDescriptorSet = descriptorSet;
+			}
+		}
 		vkCmdPushConstants(commandBuffer, aliasPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 		vkCmdDraw(commandBuffer, draw->vertexCount, 1, draw->firstVertex, 0);
 		++submitted;

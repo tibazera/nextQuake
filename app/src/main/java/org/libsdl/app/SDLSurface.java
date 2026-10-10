@@ -84,15 +84,29 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
     }
 
     private void configureRenderSurfaceSize() {
+        applyRenderHeightCap(0);
+    }
+
+    // maxHeight 0 = default 1920x1080 envelope; otherwise the buffer height is
+    // limited to maxHeight (aspect preserved, never upscaled) and the
+    // compositor scales it to the screen. Called at startup and, through JNI,
+    // when the engine's vid_android_render_height cvar changes.
+    public void applyRenderHeightCap(int maxHeight) {
         try {
             DisplayMetrics metrics = new DisplayMetrics();
             mDisplay.getRealMetrics(metrics);
 
             int deviceWidth = Math.max(metrics.widthPixels, metrics.heightPixels);
             int deviceHeight = Math.min(metrics.widthPixels, metrics.heightPixels);
+            float capWidth = MAX_RENDER_WIDTH;
+            float capHeight = MAX_RENDER_HEIGHT;
+            if (maxHeight > 0) {
+                capHeight = maxHeight;
+                capWidth = maxHeight * (float)deviceWidth / deviceHeight;
+            }
             float scale = Math.min(1.0f, Math.min(
-                    (float)MAX_RENDER_WIDTH / deviceWidth,
-                    (float)MAX_RENDER_HEIGHT / deviceHeight));
+                    capWidth / deviceWidth,
+                    capHeight / deviceHeight));
 
             int renderWidth = Math.max(1, Math.round(deviceWidth * scale));
             int renderHeight = Math.max(1, Math.round(deviceHeight * scale));
@@ -100,6 +114,9 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
                 getHolder().setFixedSize(renderWidth, renderHeight);
                 Log.i("SDL", "Android render surface capped at " + renderWidth + "x" + renderHeight
                         + " for display " + deviceWidth + "x" + deviceHeight);
+            } else if (maxHeight > 0) {
+                getHolder().setSizeFromLayout();
+                Log.i("SDL", "Android render surface uncapped at " + deviceWidth + "x" + deviceHeight);
             }
         } catch (Exception exception) {
             Log.w("SDL", "Unable to configure Android render surface size", exception);

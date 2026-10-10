@@ -2,6 +2,21 @@
 
 Branch: `feature/android-pocket-vulkan`
 
+## Latest handoff — 2026-10-09, Codex
+
+This section supersedes older touch/performance status notes. Read the current summary at the top of `continue.md` before editing. Never edit this checkout concurrently with another assistant.
+
+- Left stick controls forward/backward/strafe only. Right-side drag controls yaw/pitch. Walking does not tilt the camera. The combined movement/look experiments were rejected by Tiago.
+- A single right-side touch/drag only aims. Two short nearby taps trigger attack on the second DOWN; holding that second touch permits aiming while firing, and UP/CANCEL stops firing. FIRE still supports press-and-drag aiming. All touch attack sources are released correctly on cancellation/mode change.
+- L/R use `weapon 12`/`weapon 10`, matching the existing menu binds. The user's `cl_weaponpreselect 4` can delay selection until firing in deathmatch; do not overwrite his config.
+- Existing Quake button backgrounds, menu rune, chat balloon and configured crosshair take priority; Kenney CC0 artwork fills gaps. No Quake data is versioned.
+- KBD remains visible with touch enabled and opens console/IME. The return-arrow button folds the console. The forced startup console accepts IME text even with `key_dest == key_game`.
+- `in_touch 2` follows actual physical/touch input, rather than disabling itself solely because SDL reports attached keyboard/mouse. Initial-console keyboard opening was confirmed on Xiaomi with `mInputShown=true`/`ImeTracker onShown` after the approximately nine-second engine startup. All temporary IME logs were removed.
+- World outlines were visually confirmed by Tiago; they are optional and reduce FPS when enabled. `vk_outline_scale 0.5` uses a half-size normals target; changing it requires `vid_restart`. Exactly one cvar definition/registration exists.
+- Android Release uses `-O3`, is non-debuggable, and compiles out Vulkan profiling, input diagnostics and Vulkan validation layers. Packaged native debug sections are stripped. Debug keeps the optional profiler for future diagnosis.
+- Both Android debug and release builds, and `tests/touch-keyboard.ps1`, passed. Release APK: `app/build/outputs/apk/release/app-release.apk` (arm64, Android 10+, test signing key). S24 Ultra testing and performance measurements remain pending.
+- Preserve all work listed here. Tiago requested a local commit to protect it; no push/PR is authorized. Local build scripts/logs and APKs are not source deliverables to commit.
+
 ## Current state
 
 - Android arm64 client builds with SDL 3.4, Vulkan and the Oboe backend.

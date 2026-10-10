@@ -35,6 +35,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "gl_model.h"
 #include "teamplay.h"
 #include "input.h"
+#include "in_touch.h"
 #include "utils.h"
 #include "sbar.h"
 #include "menu.h"
@@ -830,6 +831,7 @@ static void SCR_DrawElements(void)
 			M_Draw();
 		}
 
+		IN_TouchDraw();
 		SCR_DrawCursor();
 	}
 }

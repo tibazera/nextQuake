@@ -63,6 +63,12 @@ android {
 
     buildTypes {
         release {
+            isDebuggable = false
+            externalNativeBuild {
+                cmake {
+                    arguments += "-DCMAKE_BUILD_TYPE=Release"
+                }
+            }
             // Signed with the debug keystore for internal testing; replace
             // with a real signing config before any public distribution.
             signingConfig = signingConfigs.getByName("debug")

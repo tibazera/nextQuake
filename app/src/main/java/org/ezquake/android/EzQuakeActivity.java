@@ -53,6 +53,19 @@ public class EzQuakeActivity extends SDLActivity {
         ((ViewGroup) getContentView()).addView(startupProgressView, progressParams);
     }
 
+    // Called via JNI (GetMethodID "setRenderHeight" "(I)V") from vk_main.c when
+    // the chosen resolution (vid_android_resolution) changes. 0 = default 1080p envelope.
+    public void setRenderHeight(final int maxHeight) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (mSurface != null) {
+                    mSurface.applyRenderHeightCap(maxHeight);
+                }
+            }
+        });
+    }
+
     // Called via JNI (GetMethodID "hideStartupSplash" "()V") from vk_main.c
     // once the Vulkan renderer has drawn its first frame, so the static
     // splash drawable set as the window background -- and the overlay view

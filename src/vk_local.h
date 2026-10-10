@@ -86,6 +86,8 @@ qbool VK_RenderPassCreate(void);
 void VK_RenderPassDelete(void);
 VkRenderPass VK_MainRenderPass(void);
 VkRenderPass VK_PostProcessRenderPass(void);
+VkRenderPass VK_WorldNormalsRenderPass(void);
+VkFormat VK_WorldNormalsFormat(void);
 VkFormat VK_DepthFormat(void);
 
 // vk_swapchain.c
@@ -94,10 +96,17 @@ qbool VK_CreatePostProcessResources(void);
 void VK_DestroyPostProcessResources(void);
 VkFramebuffer VK_PostProcessFramebuffer(uint32_t imageIndex);
 VkFramebuffer VK_PostProcessCompositeFramebuffer(uint32_t imageIndex);
+qbool VK_CreateWorldNormalsResources(void);
+void VK_DestroyWorldNormalsResources(void);
+VkFramebuffer VK_WorldNormalsFramebuffer(uint32_t imageIndex);
+VkDescriptorSet VK_WorldNormalsDescriptorSet(uint32_t imageIndex);
 
 // vk_draw.c
 void VK_PostProcessTransitionForSampling(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 void VK_PostProcessComposite(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+void VK_WorldNormalsTransitionForSampling(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+void VK_WorldOutlineComposite(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+qbool VK_WorldOutlineActive(void);
 
 // vk_blending.c
 void VK_BlendingConfigure(VkPipelineColorBlendStateCreateInfo* info, VkPipelineColorBlendAttachmentState* blending, r_blendfunc_t func);
@@ -268,6 +277,24 @@ typedef struct vk_options_s {
 		VkDescriptorPool postProcessDescriptorPool;
 		VkDescriptorSet* postProcessDescriptorSets;
 		qbool postProcessActive;
+		// gl_outline & 2 (world outline) prepass resources -- see
+		// VK_CreateWorldNormalsResources. One per swapchain image, same
+		// reasoning as the postProcess* fields above: this pass's framebuffer
+		// for image N could still be draining GPU work from a previous frame
+		// while frame N+1 (targeting a different swapchain image) starts
+		// drawing into its own copy. Allocated unconditionally alongside the
+		// swapchain (gl_outline is unlatched, changeable without vid_restart
+		// -- same reasoning as postProcess* above).
+		VkImage* worldNormalsColorImages;
+		VkExtent2D worldNormalsSize;
+		VkDeviceMemory* worldNormalsColorImageMemory;
+		VkImageView* worldNormalsColorImageViews;
+		VkImage* worldNormalsDepthImages;
+		VkDeviceMemory* worldNormalsDepthImageMemory;
+		VkImageView* worldNormalsDepthImageViews;
+		VkFramebuffer* worldNormalsFramebuffers;
+		VkDescriptorPool worldNormalsDescriptorPool;
+		VkDescriptorSet* worldNormalsDescriptorSets;
 	} swapChain;
 	struct {
 		VkCommandPool commandPool;

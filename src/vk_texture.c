@@ -49,6 +49,34 @@ static VkDescriptorSetLayout textureDescriptorSetLayout;
 static VkDescriptorPool textureDescriptorPool;
 static texture_ref boundTextures[16];
 
+// Descriptor sets replaced while a frame in flight may still be using them
+// (filter/anisotropy/clamp changes). Instead of vkDeviceWaitIdle, the old set
+// is parked here and freed once every frame that could reference it has
+// finished. vk_opt_texture_nowait 0 restores the old stall.
+extern cvar_t vk_opt_texture_nowait;
+#define VK_RETIRED_DESCRIPTOR_MAX 1024
+static struct { VkDescriptorSet set; uint32_t stamp; } retiredDescriptors[VK_RETIRED_DESCRIPTOR_MAX];
+static int retiredDescriptorCount;
+static uint32_t textureFrameStamp;
+
+static void VK_TextureRetireTick(void)
+{
+	int i, kept = 0;
+
+	++textureFrameStamp;
+	for (i = 0; i < retiredDescriptorCount; ++i) {
+		if (textureFrameStamp - retiredDescriptors[i].stamp >= VK_MAX_FRAMES_IN_FLIGHT) {
+			if (textureDescriptorPool != VK_NULL_HANDLE) {
+				vkFreeDescriptorSets(vk_options.logicalDevice, textureDescriptorPool, 1, &retiredDescriptors[i].set);
+			}
+		}
+		else {
+			retiredDescriptors[kept++] = retiredDescriptors[i];
+		}
+	}
+	retiredDescriptorCount = kept;
+}
+
 #define VK_MAX_PENDING_TEXTURE_UPLOADS 1024
 typedef struct vk_pending_texture_upload_s {
 	texture_ref texture;
@@ -542,6 +570,21 @@ static qbool VK_TextureUpdateDescriptor(texture_ref texture)
 		return false;
 	}
 	wasAlreadyAllocated = (vktex->descriptorSet != VK_NULL_HANDLE);
+	if (wasAlreadyAllocated && vk_opt_texture_nowait.integer && retiredDescriptorCount < VK_RETIRED_DESCRIPTOR_MAX) {
+		// Write a fresh set and retire the old one instead of waiting for the GPU.
+		VkDescriptorSet oldSet = vktex->descriptorSet;
+
+		vktex->descriptorSet = VK_NULL_HANDLE;
+		if (VK_TextureEnsureDescriptor(texture)) {
+			retiredDescriptors[retiredDescriptorCount].set = oldSet;
+			retiredDescriptors[retiredDescriptorCount].stamp = textureFrameStamp;
+			++retiredDescriptorCount;
+			wasAlreadyAllocated = false;
+		}
+		else {
+			vktex->descriptorSet = oldSet;
+		}
+	}
 	if (!VK_TextureEnsureDescriptor(texture)) {
 		return false;
 	}
@@ -943,6 +986,7 @@ void VK_TextureInitialiseState(void)
 		vkDestroyDescriptorPool(vk_options.logicalDevice, textureDescriptorPool, NULL);
 		textureDescriptorPool = VK_NULL_HANDLE;
 	}
+	retiredDescriptorCount = 0;
 	if (textureDescriptorSetLayout != VK_NULL_HANDLE) {
 		vkDestroyDescriptorSetLayout(vk_options.logicalDevice, textureDescriptorSetLayout, NULL);
 		textureDescriptorSetLayout = VK_NULL_HANDLE;
@@ -972,6 +1016,7 @@ void VK_TextureShutdown(void)
 		vkDestroyDescriptorPool(vk_options.logicalDevice, textureDescriptorPool, NULL);
 		textureDescriptorPool = VK_NULL_HANDLE;
 	}
+	retiredDescriptorCount = 0;
 	if (textureDescriptorSetLayout != VK_NULL_HANDLE) {
 		vkDestroyDescriptorSetLayout(vk_options.logicalDevice, textureDescriptorSetLayout, NULL);
 		textureDescriptorSetLayout = VK_NULL_HANDLE;
@@ -1136,6 +1181,8 @@ void VK_TextureFlushPendingUploads(VkCommandBuffer commandBuffer, uint32_t frame
 {
 	VkDeviceSize requiredCapacity;
 	int i;
+
+	VK_TextureRetireTick();
 
 	if (commandBuffer == VK_NULL_HANDLE || frameIndex >= VK_MAX_FRAMES_IN_FLIGHT || pendingTextureUploadCount == 0 || pendingTextureUploadDataSize == 0) return;
 
