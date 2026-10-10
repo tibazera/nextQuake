@@ -1,3 +1,5 @@
+![nextQuake logo](docs/assets/nextquake-logo.png)
+
 # nextQuake
 
 A QuakeWorld client focused exclusively on **Android and iOS**, based on [QW-Group's ezQuake](https://github.com/QW-Group/ezquake-source). nextQuake is an independent project, not an official QW-Group release.
