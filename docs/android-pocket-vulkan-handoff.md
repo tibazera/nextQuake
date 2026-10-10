@@ -1,3 +1,5 @@
+Installation documentation update (2026-10-10): README now includes an English Android installation guide, the confirmed /storage/emulated/0/Documents/ezQuake directory, full id1/qw/ezquake copying instructions, storage permissions, and the launcher's incomplete base-data check. Documentation only; no new device installation test.
+
 # nextQuake — retomada em 2026-10-10
 
 Tiago decidiu concentrar este projeto exclusivamente em Android e iOS. Fonte: E:\Projetos Linux\nextQuake, repositorio tibazera/nextQuake, main. O projeto original permanece preservado.
