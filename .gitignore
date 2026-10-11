@@ -26,3 +26,4 @@ local.properties
 CR*.md
 EZQUAKE_HUD_*.md
 TRACKER_*.md
+/release/

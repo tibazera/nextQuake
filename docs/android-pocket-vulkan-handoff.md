@@ -1,3 +1,11 @@
+## Retomada para Claude — 2026-10-10
+
+Pasta nova independente: E:\Projetos Linux\nextQuake. Leia CLAUDE.md primeiro para o resumo da transicao, arquivos locais de splash/icones e proximos passos. main/origin main publicados ate e05182f7; branding local ainda nao commitado. Submodulos desta copia ainda nao inicializados. Nenhum APK novo desta pasta foi gerado.
+
+App icon update (2026-10-10): user-provided metallic nextQuake logo is now referenced by Android icon/roundIcon, with mdpi through xxxhdpi sizes. ios/Assets.xcassets/AppIcon.appiconset contains a 1024px opaque icon ready for the future iOS target; it is not integrated into a running iOS app. Android resource compilation passed; no full APK build, launcher visual test, or Xcode validation. Changes remain local, uncommitted.
+
+Startup artwork update (2026-10-10): replaced the inherited QuakeWorld wallpaper with the user-provided 'Logo nextQuake em arena infernal.png' as drawable-nodpi/nextquake_splash.png. Shared window/startup/download background and Android 12 splash icon reference the new artwork. aapt2 resource compilation passed; no new APK build or device visual test. Changes remain local, uncommitted.
+
 Installation documentation update (2026-10-10): README now includes an English Android installation guide, the confirmed /storage/emulated/0/Documents/ezQuake directory, full id1/qw/ezquake copying instructions, storage permissions, and the launcher's incomplete base-data check. Documentation only; no new device installation test.
 
 # nextQuake — retomada em 2026-10-10

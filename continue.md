@@ -1,3 +1,11 @@
+## Retomada para Claude — 2026-10-10
+
+Pasta nova independente: E:\Projetos Linux\nextQuake. Leia CLAUDE.md primeiro para o resumo da transicao, arquivos locais de splash/icones e proximos passos. main/origin main publicados ate e05182f7; branding local ainda nao commitado. Submodulos desta copia ainda nao inicializados. Nenhum APK novo desta pasta foi gerado.
+
+App icon update (2026-10-10): user-provided metallic nextQuake logo is now referenced by Android icon/roundIcon, with mdpi through xxxhdpi sizes. ios/Assets.xcassets/AppIcon.appiconset contains a 1024px opaque icon ready for the future iOS target; it is not integrated into a running iOS app. Android resource compilation passed; no full APK build, launcher visual test, or Xcode validation. Changes remain local, uncommitted.
+
+Startup artwork update (2026-10-10): replaced the inherited QuakeWorld wallpaper with the user-provided 'Logo nextQuake em arena infernal.png' as drawable-nodpi/nextquake_splash.png. Shared window/startup/download background and Android 12 splash icon reference the new artwork. aapt2 resource compilation passed; no new APK build or device visual test. Changes remain local, uncommitted.
+
 Installation documentation update (2026-10-10): README now includes an English Android installation guide, the confirmed /storage/emulated/0/Documents/ezQuake directory, full id1/qw/ezquake copying instructions, storage permissions, and the launcher's incomplete base-data check. Documentation only; no new device installation test.
 
 # nextQuake — retomada em 2026-10-10
@@ -191,3 +199,52 @@ Tiago pediu distinguir mira de tiro: toque simples/arrasto livre só mira. Prime
 Tiago reiterou teclado ausente no console inicial em modo auto. Removida desativação incondicional por SDL_HasKeyboard && SDL_HasMouse em IN_TouchFrame: auto passa a seguir eventos físicos/touch, conforme intenção já documentada. Teste com ambos periféricos reportados reproduziu active=false antes e passa após mudança.
 
 Investigação temporária adicional mostrou delay de startup: antes do primeiro HandleEvents touch permanece false; primeiro frame útil aproximadamente9s após início. Depois de completar inicialização, rastreado mode=2/auto=1/want=1/key_dest=console e Android ImeTracker onShown. dumpsys input_method confirmou mInputShown=true, SDLDummyEdit focado com SDLInputConnection. As verificações anteriores de teclado oculto foram feitas cedo demais, ainda durante startup; não eram prova de falha depois do carregamento. Logs IME_TRACE removidos; build/testes finais passaram; APK final reinstalado/relançado. Sem alterar cfg, sem commit/push.
+
+## Release 0.1 / f_version (2026-10-10) — código pronto, NÃO compilado ainda
+
+- `VERSION` (0.1.0) é a fonte única: Gradle (versionName/versionCode), CMake (`NEXTQUAKE_VERSION`), `scripts/release.ps1`, `CHANGELOG.md`. Fluxo em `docs/RELEASING.md`.
+- `f_version` agora: `nextQuake 0.1.0 (ezQuake 3.7.0-dev) Android 14:Vulkan` — nextQuake laranja (`&cf80`), versão verde (`&c0f0`), plataforma azul claro no Android. `QW_PLATFORM` = Android/iOS (antes `Linux32` porque `__linux__` também é definido no Android), `QW_RENDERER` = Vulkan no mobile, `QW_PlatformDetail()` lê `ro.build.version.release`. iOS: stub "iOS".
+- Update check aponta para `tibazera/nextQuake` releases (tag `v0.1.0`). Repo privado => falha em silêncio, sem banner.
+- Arquivos: `src/version.h`, `src/version.c`, `src/fchecks.c`, `src/menu_ingame.c`, `CMakeLists.txt`, `app/build.gradle.kts`, `scripts/release.ps1`, `CHANGELOG.md`, `docs/RELEASING.md`, `.gitignore` (+`/release/`).
+- Falta: `git submodule update --init --recursive`, build Debug/Release no nextQuake, conferir `f_version` num servidor, keystore de release real, commit/tag (só com pedido do Tiago).
+
+## unezQuake 2.1 → nextQuake (2026-10-10)
+
+Upstream 2.1 (dusty-qw/unezquake, publicado 2026-10-09; 39 commits desde 2.0.5). O que NÃO se aplica direto: o nextQuake deriva do ezQuake (QW-Group), não do unezQuake — não tem `cl_ezcsqc.c`, `cl_session.c` nem o stack de antilag/prediction (as correções de EZCSQC/LG/sound prediction ficam de fora).
+
+**Portado (sem build ainda):** (1) correção de **buffer overflow remoto no parse de infostring** (`src/common.c`: `Info_ValueForKey`, `Info_RemoveKey`, `Info_Print`; também `Info_RemovePrefixedKeys`, que tem o mesmo padrão e o upstream não corrigiu); (2) serverinfo de 1024 bytes (`MAX_SERVERINFO_STRING` 512→1024 em `common.h`, `argv_buf` 1024→2048 em `cmd.h`); (3) `cvaredit` copiando o NUL final (`cvar.c`).
+
+**Pendente / decisão:** novo menu (Quick Play, servidores, demos, busca de settings) é **Dear ImGui com backends OpenGL2/3 + SDL2** (`menu_imgui.cpp` 2294 linhas, `menu_ui_bridge.c`, `menu_scene.c`, ~69k linhas de ImGui no total). Não roda no renderer Vulkan: exigiria backends ImGui Vulkan+SDL3, escala/touch e mapa de fundo; é um projeto, não um cherry-pick. Sessions (multi-servidor, janela/processo desktop) não faz sentido no mobile agora. `cl_delay_packet` → CL_PING e Shift+Esc abrem console: não portados (CL_PING mexe em net.c, sem benefício mobile claro; Shift+Esc é trivial se quiser).
+
+## Config padrão embutida + correções do dia (2026-10-10)
+
+- **Config padrão**: `app/src/main/assets/defaults/config.cfg` (gerada da config do Tiago sem `name/team/skin/cores/spectator`, sem `vid_*`/janela/mouse de desktop e sem senhas/tokens; 4032 linhas, 1708 `hud_*`, 62 binds). O launcher (`installDefaultConfigIfMissing`) copia para `Documents/ezQuake/ezquake/configs/config.cfg` **só se não existir**. Motivo: com a config padrão do cliente o modo observar travava; com a config do Tiago ficou normal. Build OK; cópia em instalação limpa **ainda não testada** (o celular já tem a config).
+- **Nomes acima da cabeça (autoid)** deslocados: `R_Project3DCoordinates` usava a projeção pré-rotacionada do Android; corrigido com `R_RemoveAndroidPreRotation` em `src/r_matrix.c`. Confirmado pelo Tiago.
+- **Console com teclado**: `in_touch_console_size` (0.4) encolhe o console enquanto o IME está aberto.
+- **Launcher**: detecta pacote HD já instalado e grava marcador `ezquake/.hd_textures_prompted`.
+- **Ports do Codex revertidos** (screenshot/formato swapchain/guards cvar/sky/mouse subpixel/mip clamp): `E:\tmp\nq-codex-ports.patch` guarda o patch. Não eram a causa do travamento. Investigação do Codex sobre pose2 do alias (`nq-spectator-fix.patch`, não aplicado): Vulkan descarta `pose2`, possível melhoria futura, não confirmada como causa.
+- **Do unezQuake 2.1 já aplicado**: overflow de infostring (`common.c`), serverinfo 1024/argv_buf 2048, cvaredit. Menu novo (ImGui GL/SDL2) = projeto futuro.
+- Para builds do nextQuake usar o junction `C:\nq` (caminho sem espaço; `speex` quebra com espaço). Linha de base antiga: `C:\nqbase` (worktree detached de db779096, `-DGIT_SUBMODULE=OFF`).
+
+## Menu Overhaul (Dear ImGui do unezQuake 2.1) portado para Vulkan/SDL3 (2026-10-10) — instalado, NÃO validado visualmente
+
+- Fonte upstream de referência (somente leitura, fora do git): `_upstream_unezquake/` (tag 2.1, em `.git/info/exclude`). ImGui v1.92.9b: núcleo igual ao vendored do unezQuake + backends oficiais SDL3/Vulkan (`src/imgui/backends`), com patch próprio em `imgui_impl_vulkan.cpp` (`ImGui_ImplVulkan_SetPreRotation`: shader/push constants/viewport/scissor girados para a pré-rotação do swapchain Android; vertex shader `src/vulkan_shaders/vk_imgui.vert`).
+- Arquivos novos: `src/menu_imgui.cpp` (portado de GL/SDL2 para Vulkan/SDL3; "Quit unezQuake?" -> nextQuake; copyright da equipe unezQuake preservado), `menu_ui_bridge.{c,h}` (adaptado pelo Codex ao nosso motor: settings pages reimplementadas, sem sessões, textura de preview via `VK_ImGui_TextureID`), `menu_scene.{c,h}` (STUB: mapa de fundo não portado), `vk_imgui.cpp` + `vk_imgui_bridge.h` (backend), `vk_imgui_glue.c` (handles Vulkan, cache de texturas), `vk_texture.c: VK_TextureImageView`.
+- Ganchos: `menu.h/menu.c` (estado `m_imgui`, `menu_quickplay`, M_ImGui_*), `cl_screen.c` (`M_ImGui_Frame` depois do pós-processamento), `cl_main.c` (`M_ClassicMenus_Init` antes de `VID_Init`), `vid_sdl2.c` (`MenuUI_ProcessEvent` em todo evento, toque -> `MUIVK_TouchPointer`, VidInit/VidShutdown junto do Vulkan), `in_touch.c` (overlay antigo some com o menu aberto; IME abre em campo de texto via `MenuUI_WantsTextInput`).
+- cvars: `menu_classic 1` volta ao menu clássico; `menu_scale`; `menu_background` (sem efeito, cena é stub).
+- Lacunas conhecidas: fundo (mapa) não portado; botão QTV desligado (`qtvlist_has_stream` não existe aqui); rolagem por arrasto e Back do Android no menu ainda não verificados; nada validado no aparelho.
+
+## Fundo do menu com mapa portado + APKs (2026-10-10, 06:05)
+
+- `src/menu_scene.c` agora e o real (unezQuake 2.1), nao mais stub. Ganchos: `screen.h` (SCR_NEED_CONSOLE_BACKGROUND), `cl_view.c` (V_PreRenderView), `cl_screen.c` (MenuScene_Frame / MenuScene_Draw2D), `cl_main.c` (MenuScene_Invalidate em CL_ClearState e CL_Disconnect), `r_model.c` (Mod_ReloadModelsTextures).
+- Build via `C:\nq` com JDK17, ANDROID_HOME C:\Android\Sdk, glslangValidator de C:\VulkanSDK\1.4.350.0\Bin no PATH: Debug e Release BUILD SUCCESSFUL. Debug app-debug.apk 30.683.741 B; Release app-release.apk 17.725.278 B, SHA256 4841208DE3554038156A26352A730BDB04DB27F77819F438C6B2455374C3F094 (chave de teste).
+- NAO validado em aparelho (nenhum conectado por adb). Revisao Codex falhou (sem acesso ao diretorio); revisao manual de vk_world/r_rmain nao achou gate por cls.state.
+- Patches soltos: nq-menu-bridge.patch ja aplicado (pode apagar); q-spectator-fix.patch nao aplica e foi rejeitado.
+- Sem commit/push.
+
+Correcoes da revisao Codex (menu_scene.c): estaticas (portas/itens) agora sao enfileiradas e ligadas DEPOIS de R_NewMap (que zera efrags); cena sem camera valida falha em vez de ficar ativa sem desenhar. Debug/Release recompilados: app-debug.apk 30.684.013 B; app-release.apk 17.725.502 B, SHA256 7FE960C89EC875ECD88EB5F8F30263BEAA6307A17B37BC1E757A226FEA91F6DE. Ainda nao validado em aparelho.
+
+## Console ImGui (2026-10-10) — compila, NAO instalado/validado
+- Nova pagina `MUI_PAGE_CONSOLE` no menu ImGui (botao CONSOLE da barra): scrollback lido de `con.text/clr` (monoespacado, cores, 500 linhas, arrasto rola), entrada com IME, Send/Tab/Clear/Close, historico (setas) e Tab completion via `Key_Console`, entrada passa por `Key_Console(K_ENTER)` (mesma logica de chat/comando do console classico). Encolhe para a metade superior quando o teclado esta aberto.
+- Console classico (`toggleconsole`, backtick, botoes CON/KBD do overlay) NAO foi trocado; decidir com o Tiago.
+- Quick Play: toque seleciona card (Play/Spectate fixos). Browser: timeouts curl, CAPATH Android, limite MAX_SERVERS, logs `nq-sb`.

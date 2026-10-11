@@ -22,7 +22,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __VERSION_H__
 #define __VERSION_H__
 
-#if defined(_WIN32)
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
+#if defined(__ANDROID__)
+// Must be tested before __linux__: Android defines both.
+#define QW_PLATFORM			"Android"
+#define QW_PLATFORM_SHORT	"a"
+
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+#define QW_PLATFORM			"iOS"
+#define QW_PLATFORM_SHORT	"i"
+
+#elif defined(_WIN32)
 // Warning: this is different from mvdsv (no 64-bit check)
 #if defined(_WIN64)
 	#define QW_PLATFORM			"Win64"
@@ -69,7 +82,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define QW_PLATFORM_SHORT	"u"
 #endif
 
+// Mobile builds only ship the Vulkan renderer (MoltenVK on iOS).
+#if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+#define QW_RENDERER			"Vulkan"
+#else
 #define QW_RENDERER			"GL"
+#endif
 
 #ifdef _DEBUG
 #define QW_CONFIGURATION	"Debug"
@@ -77,9 +95,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define QW_CONFIGURATION	"Release"
 #endif
 
+// nextQuake release version, single source: the VERSION file at the repo root
+// (passed in by CMake as NEXTQUAKE_VERSION). Bump it with scripts/release.
+#ifndef NEXTQUAKE_VERSION
+#define NEXTQUAKE_VERSION "0.0.0-dev"
+#endif
+#define NEXTQUAKE_NAME "nextQuake"
+
+// Version of the ezQuake code base this build is derived from. Kept as is:
+// servers and mods detect the client through it (f_server, demo headers).
 // Note: for server mods to detect version, change VERSION_NUM below
 #define VERSION_NUMBER "3.7.0-dev"
 #define VERSION_MAX_LEN 32
+
+// Human readable OS for f_version, e.g. "Android 14". Falls back to QW_PLATFORM.
+const char *QW_PlatformDetail(void);
 
 void CL_Version_f(void);
 char *VersionString(void);

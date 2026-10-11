@@ -37,7 +37,7 @@
 
 #define VERSION_UNKNOWN "Unknown"
 #define VERSION_GITHUB_MAXLEN 32768 // ~2k @ ~2023
-#define VERSION_GITHUB_URL "https://api.github.com/repos/qw-group/ezquake-source/releases/latest"
+#define VERSION_GITHUB_URL "https://api.github.com/repos/tibazera/nextQuake/releases/latest"
 
 static char version_latest[VERSION_MAX_LEN] = VERSION_UNKNOWN;
 static qbool version_refreshing = false;
@@ -118,6 +118,40 @@ void CL_Version_f (void)
 
 /*
 =======================
+QW_PlatformDetail
+======================
+*/
+#ifdef __ANDROID__
+#include <sys/system_properties.h>
+#endif
+
+const char *QW_PlatformDetail(void)
+{
+	static char str[64];
+
+	if (str[0]) {
+		return str;
+	}
+
+#ifdef __ANDROID__
+	{
+		char release[PROP_VALUE_MAX] = { 0 };
+
+		__system_property_get("ro.build.version.release", release);
+		if (release[0]) {
+			snprintf(str, sizeof(str), QW_PLATFORM " %s", release);
+		}
+	}
+#endif
+
+	if (!str[0]) {
+		strlcpy(str, QW_PLATFORM, sizeof(str));
+	}
+	return str;
+}
+
+/*
+=======================
 VersionString
 ======================
 */
@@ -143,7 +177,7 @@ char *VersionStringFull (void)
 {
 	static char str[256];
 
-	snprintf (str, sizeof(str), SERVER_NAME " %s " "(" QW_PLATFORM ")" "\n", VersionString());
+	snprintf (str, sizeof(str), NEXTQUAKE_NAME " %s (ezQuake %s) (" QW_PLATFORM ")\n", NEXTQUAKE_VERSION, VersionString());
 
 	return str;
 }
@@ -304,6 +338,8 @@ static qbool SemanticVersionFromString(const char* value, semantic_version_t* ve
 {
 	if (!value)
 		return false;
+	if (*value == 'v' || *value == 'V')
+		++value;   // release tags are "v0.1.0"
 	if (sscanf(value, "%d.%d.%d", &version->major, &version->minor, &version->patch) != 3)
 		return false;
 	return true;
@@ -330,9 +366,9 @@ static qbool VersionCheck_IsOutdated(const char recent_version[VERSION_MAX_LEN])
 	if (strcmp(recent_version, VERSION_UNKNOWN) == 0)
 		return false;
 	
-	if (!SemanticVersionFromString(VERSION_NUMBER, &v1))
+	if (!SemanticVersionFromString(NEXTQUAKE_VERSION, &v1))
 	{
-		Com_DPrintf("Could not parse own version: %s", VERSION_NUMBER);
+		Com_DPrintf("Could not parse own version: %s", NEXTQUAKE_VERSION);
 		return false;
 	}
 

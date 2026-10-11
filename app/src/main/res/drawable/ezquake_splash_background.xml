@@ -4,6 +4,6 @@
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@drawable/ezquake_splash" />
+            android:src="@drawable/nextquake_splash" />
     </item>
 </layer-list>

@@ -6,6 +6,6 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ezquake_splash</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/nextquake_splash</item>
     </style>
 </resources>

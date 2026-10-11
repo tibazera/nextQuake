@@ -180,7 +180,7 @@ void M_Ingame_Draw(void) {
 	if (outdated)
 	{
 		char message[4096] = { 0 };
-		snprintf(message, sizeof(message), "Outdated client %s, latest version is %s", VERSION_NUMBER, version);
+		snprintf(message, sizeof(message), "Outdated client %s, latest version is %s", NEXTQUAKE_VERSION, version);
 		UI_Print_Center(0, 32, vid.width, message, 0);
 	}
 }

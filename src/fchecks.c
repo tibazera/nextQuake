@@ -28,6 +28,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // Compile-time platform color for f_version display
 #if defined(_WIN32)
 #define QW_PLATFORM_COLOR "&c4af"   // light blue  - Windows
+#elif defined(__ANDROID__)
+#define QW_PLATFORM_COLOR "&c9cf"   // light blue  - Android
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+#define QW_PLATFORM_COLOR "&ceee"   // white       - iOS
 #elif defined(__linux__)
 #define QW_PLATFORM_COLOR "&cfa0"   // orange      - Linux
 #elif defined(__APPLE__)
@@ -64,9 +68,11 @@ extern cvar_t cl_iDrive;
 static void FChecks_VersionResponse (void)
 {
 	// {} required for color codes to render in QW chat
-	// ice white for ezQuake, cyan for version, platform color varies by OS, gray for renderer
-	Cbuf_AddText(va("say {&ccefezQuake&r &c0ff%s&r " QW_PLATFORM_COLOR "%s&r:&c888%s&r}\n",
-		VersionString(), QW_PLATFORM, QW_RENDERER));
+	// orange for nextQuake, green for its version, platform color varies by OS, gray for renderer
+	// e.g. "nextQuake 0.1.0 (ezQuake 3.7.0-dev) Android 14:Vulkan"; the ezQuake base
+	// version stays in the text so servers/mods that look for it keep working
+	Cbuf_AddText(va("say {&cf80" NEXTQUAKE_NAME "&r &c0f0%s&r (ezQuake &c888%s&r) " QW_PLATFORM_COLOR "%s&r:&c888%s&r}\n",
+		NEXTQUAKE_VERSION, VersionString(), QW_PlatformDetail(), QW_RENDERER));
 }
 
 static char *FChecks_FServerResponse_Text(void)

@@ -31,11 +31,11 @@
 
     <application
         android:hardwareAccelerated="true"
-        android:icon="@mipmap/ezquake_logo"
+        android:icon="@mipmap/nextquake_icon"
         android:label="ezQuake"
         android:requestLegacyExternalStorage="true"
         android:resizeableActivity="true"
-        android:roundIcon="@mipmap/ezquake_logo"
+        android:roundIcon="@mipmap/nextquake_icon"
         android:theme="@style/EzQuakeTheme">
         <activity
             android:name=".EzQuakeLauncherActivity"

@@ -6,6 +6,13 @@ val sdkRoot = System.getenv("ANDROID_HOME")
     ?: System.getenv("ANDROID_SDK_ROOT")
     ?: "${System.getProperty("user.home")}/Android/Sdk"
 val ndkVersionPinned = "28.2.13676358"
+
+// Single source of truth for the release version: the VERSION file at the repo root
+// ("MAJOR.MINOR.PATCH"). versionCode = MAJOR*10000 + MINOR*100 + PATCH, so 0.1.0 -> 100.
+val nextQuakeVersion = file("${rootDir}/VERSION").readText().trim()
+val nextQuakeVersionCode = nextQuakeVersion.split(".").let { parts ->
+    parts[0].toInt() * 10000 + parts[1].toInt() * 100 + parts[2].takeWhile { it.isDigit() }.toInt()
+}
 val ndkRoot = System.getenv("ANDROID_NDK_HOME")
     ?: "$sdkRoot/ndk/$ndkVersionPinned"
 
@@ -18,8 +25,8 @@ android {
         applicationId = "org.ezquake.android"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = nextQuakeVersionCode
+        versionName = nextQuakeVersion
 
         ndk {
             abiFilters += "arm64-v8a"
