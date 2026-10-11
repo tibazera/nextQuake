@@ -1,0 +1,1 @@
+Dear ImGui v1.92.9b + backends SDL3/Vulkan (oficiais, mesma revisao f1cc2ae1).

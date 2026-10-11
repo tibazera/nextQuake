@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // see the pre-rotation comment in VK_CreateSwapChain().
 extern int VK_AndroidPreRotationDegrees(void);
 static void R_ApplyAndroidPreRotation(float* matrix);
+static void R_RemoveAndroidPreRotation(float* matrix);
 #endif
 
 static float projectionMatrix[16];
@@ -155,6 +156,33 @@ static void R_ApplyAndroidPreRotation(float* matrix)
 		}
 		else {
 			R_RotateMatrix(rotation, (float)degrees, 0, 0, 1);
+		}
+		R_MultiplyMatrix(matrix, rotation, result);
+		R_SetMatrix(matrix, result);
+	}
+}
+
+// Exact inverse of R_ApplyAndroidPreRotation (same multiplication, inverse rotation), used
+// to recover the plain projection for CPU-side 3D -> 2D work such as player name tags.
+static void R_RemoveAndroidPreRotation(float* matrix)
+{
+	int degrees = VK_AndroidPreRotationDegrees();
+	if (degrees != 0) {
+		float rotation[16];
+		float result[16];
+
+		R_SetIdentityMatrix(rotation);
+		if (degrees == 90) {
+			// inverse of the 90 case: the 270 matrix
+			rotation[0] = 0; rotation[4] = 1;
+			rotation[1] = -1; rotation[5] = 0;
+		}
+		else if (degrees == 270) {
+			rotation[0] = 0; rotation[4] = -1;
+			rotation[1] = 1; rotation[5] = 0;
+		}
+		else {
+			R_RotateMatrix(rotation, (float)-degrees, 0, 0, 1);
 		}
 		R_MultiplyMatrix(matrix, rotation, result);
 		R_SetMatrix(matrix, result);
@@ -448,6 +476,11 @@ qbool R_Project3DCoordinates(float objx, float objy, float objz, float* winx, fl
 
 	R_GetModelviewMatrix(model);
 	R_GetProjectionMatrix(proj);
+#ifdef __ANDROID__
+	// The stored projection is pre-rotated for the Android surface; the window mapping below
+	// assumes a plain one, otherwise projected points (name tags) end up displaced.
+	R_RemoveAndroidPreRotation(proj);
+#endif
 	R_GetViewport(view);
 
 	for (i = 0; i < 4; i++) {

@@ -16,6 +16,7 @@ void IN_TouchFrame(void);   // once per frame from the event loop
 qbool IN_TouchActive(void);
 qbool IN_TouchConsoleActive(void);
 qbool IN_TouchWantsTextInput(void);
+float IN_TouchConsoleLines(float lines);
 qbool IN_TouchConsumeKeyboardNudge(void);
 void IN_TouchPhysicalInput(qbool key);
 void IN_TouchFinger(int phase, long long finger_id, float x, float y, float dx, float dy);
@@ -35,6 +36,7 @@ void IN_TouchReleaseAll(void);
 #define IN_TouchActive()                (false)
 #define IN_TouchConsoleActive()         (key_dest == key_console)
 #define IN_TouchWantsTextInput()        (false)
+#define IN_TouchConsoleLines(lines)     (lines)
 #define IN_TouchConsumeKeyboardNudge()  (false)
 #define IN_TouchPhysicalInput(key)      ((void)0)
 #define IN_TouchMove(cmd)               ((void)0)

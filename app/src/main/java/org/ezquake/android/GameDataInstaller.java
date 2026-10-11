@@ -44,6 +44,18 @@ public final class GameDataInstaller {
         return false;
     }
 
+    // True when every file of the manifest is already on disk (non-empty), so the
+    // launcher can detect an existing install instead of offering to download it.
+    public static boolean allFilesPresent(File baseDir, List<GameDataManifest.Entry> manifest) {
+        for (GameDataManifest.Entry entry : manifest) {
+            File file = new File(baseDir, entry.localPath);
+            if (!file.isFile() || file.length() == 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static long totalSize(List<GameDataManifest.Entry> manifest) {
         long total = 0;
         for (GameDataManifest.Entry entry : manifest) {

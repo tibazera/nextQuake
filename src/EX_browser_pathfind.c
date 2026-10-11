@@ -40,6 +40,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <unistd.h>
 #endif
 #include "EX_browser.h"
+void SB_UserDataPath(char *out, size_t size, const char *name);
 
 // declared in EX_browser.c
 extern cvar_t sb_proxinfopersec;
@@ -582,7 +583,7 @@ static void SB_PingTree_ScanProxies(void)
 	if (sb_listcache.value) {
 		char prx_data_path[MAX_OSPATH] = {0};
 
-		snprintf(&prx_data_path[0], sizeof(prx_data_path), "%s/%s", com_homedir, "proxies_data");
+		SB_UserDataPath(prx_data_path, sizeof(prx_data_path), "proxies_data");
 		f = fopen(prx_data_path, "wb");
 		if (f)
 			SB_Proxylist_Serialize_Start(f);
@@ -857,7 +858,7 @@ void SB_Proxylist_Unserialize_f(void)
 	FILE *f;
 	int err;
 	
-	snprintf(&filename[0], sizeof(filename), "%s/%s", com_homedir, "proxies_data");
+	SB_UserDataPath(filename, sizeof(filename), "proxies_data");
 
 	if (!(f	= fopen(filename, "rb"))) {
 		Com_Printf("Couldn't read %s.\n", filename);

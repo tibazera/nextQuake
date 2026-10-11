@@ -3059,6 +3059,17 @@ void SB_Sources_Update_f(void)
 	SB_Sources_Update_Begin(true);
 }
 
+// Where the server list caches live. Android has no usable $HOME (com_homedir ends up on
+// a read-only path), so keep them next to the rest of the user's ezquake data.
+void SB_UserDataPath(char *out, size_t size, const char *name)
+{
+#ifdef __ANDROID__
+	snprintf(out, size, "%s/ezquake/%s", com_basedir, name);
+#else
+	snprintf(out, size, "%s/%s", com_homedir, name);
+#endif
+}
+
 // Server list serialization.
 // When user set sb_listcache 1, the server list will be saved to his home dir after each update
 // so that next time the client is started the list is immediately full of servers
@@ -3158,7 +3169,7 @@ void SB_Serverlist_Serialize_f(void)
 	FILE *f;
 	char filename[MAX_OSPATH] = {0};
 
-	snprintf(&filename[0], sizeof(filename), "%s/%s", com_homedir, "servers_data");
+	SB_UserDataPath(filename, sizeof(filename), "servers_data");
 
 	if (!(f	= fopen	(filename, "wb"))) {
 		FS_CreatePath(filename);
@@ -3180,7 +3191,7 @@ void SB_Serverlist_Unserialize_f(void)
 	int err;
 	char filename[MAX_OSPATH] = {0};
 
-	snprintf(&filename[0], sizeof(filename), "%s/%s", com_homedir, "servers_data");
+	SB_UserDataPath(filename, sizeof(filename), "servers_data");
 
 	if (!(f	= fopen	(filename, "rb"))) {
 		Com_Printf ("Couldn't read %s.\n", filename);

@@ -749,6 +749,22 @@ class SDLGenericMotionListener_API14 implements View.OnGenericMotionListener {
                         break;
                     }
 
+                    // Side buttons (back/forward) and other buttons pressed while the pointer is
+                    // not captured only arrive here: hand them to SDL as mouse buttons 4/5/...
+                    // so they can be bound in the game instead of acting as system "back".
+                    case MotionEvent.ACTION_BUTTON_PRESS:
+                    case MotionEvent.ACTION_BUTTON_RELEASE: {
+                        boolean relative = checkRelativeEvent(event);
+
+                        x = getEventX(event, i);
+                        y = getEventY(event, i);
+                        SDLActivity.onNativeMouse(event.getButtonState(),
+                            action == MotionEvent.ACTION_BUTTON_PRESS ? MotionEvent.ACTION_DOWN : MotionEvent.ACTION_UP,
+                            x, y, relative);
+                        consumed = true;
+                        break;
+                    }
+
                     default:
                         break;
                 }
@@ -955,16 +971,35 @@ class SDLGenericMotionListener_API26 extends SDLGenericMotionListener_API24 {
         return event.getSource() == InputDevice.SOURCE_MOUSE_RELATIVE;
     }
 
+    private boolean absoluteMouse(MotionEvent event, int pointerIndex) {
+        return !mRelativeModeEnabled && !checkRelativeEvent(event)
+            && event.getToolType(pointerIndex) == MotionEvent.TOOL_TYPE_MOUSE;
+    }
+
     @Override
     float getEventX(MotionEvent event, int pointerIndex) {
         // Relative mouse in capture mode will only have relative for X/Y
-        return event.getX(pointerIndex);
+        float x = event.getX(pointerIndex);
+        return absoluteMouse(event, pointerIndex) ? SDLActivity.scaleMouseX(x) : x;
     }
 
     @Override
     float getEventY(MotionEvent event, int pointerIndex) {
         // Relative mouse in capture mode will only have relative for X/Y
-        return event.getY(pointerIndex);
+        float y = event.getY(pointerIndex);
+        return absoluteMouse(event, pointerIndex) ? SDLActivity.scaleMouseY(y) : y;
+    }
+
+    @Override
+    float getHistoricalEventX(MotionEvent event, int pointerIndex, int pos) {
+        float x = super.getHistoricalEventX(event, pointerIndex, pos);
+        return absoluteMouse(event, pointerIndex) ? SDLActivity.scaleMouseX(x) : x;
+    }
+
+    @Override
+    float getHistoricalEventY(MotionEvent event, int pointerIndex, int pos) {
+        float y = super.getHistoricalEventY(event, pointerIndex, pos);
+        return absoluteMouse(event, pointerIndex) ? SDLActivity.scaleMouseY(y) : y;
     }
 }
 

@@ -130,6 +130,7 @@ VkDescriptorSetLayout VK_TextureDescriptorSetLayout(void);
 VkDescriptorSet VK_TextureDescriptorSet(texture_ref texture);
 qbool VK_TextureDescriptorImageInfo(texture_ref texture, qbool nearest, VkDescriptorImageInfo* info);
 qbool VK_TextureReady(texture_ref texture);
+VkImageView VK_TextureImageView(texture_ref texture);
 void VK_TextureInitialiseState(void);
 void VK_TextureShutdown(void);
 void VK_TextureDelete(texture_ref texture);

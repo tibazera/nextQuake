@@ -1106,7 +1106,25 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     public static native void onNativeKeyDown(int keycode);
     public static native void onNativeKeyUp(int keycode);
     public static native boolean onNativeSoftReturnKey();
-    public static native void onNativeKeyboardFocusLost();
+    public static native void onNativeKeyboardFocusLost();
+    // The render surface can be smaller than the screen (render resolution cap), and SDL clamps the
+    // mouse to the window: hand it coordinates already in surface space so the whole screen is reachable.
+    static float scaleMouseX(float x) {
+        SDLSurface s = mSurface;
+        if (s == null) return x;
+        int viewW = s.getWidth();
+        int surfaceW = s.getHolder().getSurfaceFrame().width();
+        return (viewW > 0 && surfaceW > 0 && viewW != surfaceW) ? x * surfaceW / viewW : x;
+    }
+
+    static float scaleMouseY(float y) {
+        SDLSurface s = mSurface;
+        if (s == null) return y;
+        int viewH = s.getHeight();
+        int surfaceH = s.getHolder().getSurfaceFrame().height();
+        return (viewH > 0 && surfaceH > 0 && viewH != surfaceH) ? y * surfaceH / viewH : y;
+    }
+
     public static native void onNativeMouse(int button, int action, float x, float y, boolean relative);
     public static native void onNativeTouch(int touchDevId, int pointerFingerId,
                                             int action, float x,
@@ -1534,6 +1552,16 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
                 if (SDLControllerManager.onNativePadUp(deviceId, keyCode)) {
                     return true;
                 }
+            }
+        }
+
+        // A mouse's side buttons can show up as BACK/FORWARD key events from a device that is a
+        // keyboard and a mouse at once: never let those act as the system back button.
+        if ((keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_FORWARD) && (source & InputDevice.SOURCE_MOUSE) != InputDevice.SOURCE_MOUSE) {
+            InputDevice sourceDevice = InputDevice.getDevice(deviceId);
+            if (sourceDevice != null && !sourceDevice.isVirtual()
+                && (sourceDevice.getSources() & InputDevice.SOURCE_MOUSE) == InputDevice.SOURCE_MOUSE) {
+                return true;
             }
         }
 

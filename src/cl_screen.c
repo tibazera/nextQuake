@@ -36,6 +36,7 @@ $Id: cl_screen.c,v 1.156 2007-10-29 00:56:47 qqshka Exp $
 #include "teamplay.h"
 #include "input.h"
 #include "in_touch.h"
+#include "menu_scene.h"
 #include "utils.h"
 #include "sbar.h"
 #include "menu.h"
@@ -537,10 +538,10 @@ void SCR_SetUpToDrawConsole (void) {
 	
 	// decide on the height of the console
 	if (SCR_NEED_CONSOLE_BACKGROUND) {
-		scr_conlines = vid.height;		// full screen
+		scr_conlines = IN_TouchConsoleLines(vid.height);		// full screen
 		scr_con_current = scr_conlines;
 	} else if (key_dest == key_console) {
-		scr_conlines = vid.height * scr_consize.value;
+		scr_conlines = IN_TouchConsoleLines(vid.height * scr_consize.value);
 		scr_conlines = bound(30, scr_conlines, vid.height);
 	} else {
 		scr_conlines = 0;				// none visible
@@ -946,6 +947,8 @@ void SCR_UpdateScreenPlayerView(int flags)
 
 		// draw any areas not covered by the refresh
 		SCR_TileClear();
+
+		MenuScene_Draw2D();
 	}
 }
 
@@ -1009,6 +1012,9 @@ void SCR_UpdateScreenPostPlayerView(void)
 
 	renderer.PostProcessScreen();
 
+	// Dear ImGui menus go on top of everything, in window coordinates
+	M_ImGui_Frame();
+
 	SCR_CheckAutoScreenshot();
 
 	VID_RenderFrameEnd();
@@ -1020,6 +1026,8 @@ void SCR_UpdateScreenPostPlayerView(void)
 // WARNING: be very careful calling this from elsewhere, because the refresh needs almost the entire 256k of stack space!
 qbool SCR_UpdateScreen(void)
 {
+	MenuScene_Frame();
+
 	if (!SCR_UpdateScreenPrePlayerView()) {
 		VID_RenderFrameEnd();
 		return false;

@@ -1024,6 +1024,14 @@ void VK_TextureShutdown(void)
 	memset(boundTextures, 0, sizeof(boundTextures));
 }
 
+VkImageView VK_TextureImageView(texture_ref texture)
+{
+	if (!VK_TextureReferenceInRange(texture)) {
+		return VK_NULL_HANDLE;
+	}
+	return textureData[texture.index].imageView;
+}
+
 void VK_TextureDelete(texture_ref texture)
 {
 	if (VK_TextureReferenceInRange(texture)) {

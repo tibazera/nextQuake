@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class EzQuakeLauncherActivity extends Activity {
     // Must match ANDROID_EZQUAKE_BASEDIR in src/sys_posix.c.
+    private static final String HD_PROMPT_MARKER = "ezquake/.hd_textures_prompted";
     private static final String BASEDIR = "/storage/emulated/0/Documents/ezQuake";
     private static final int REQUEST_LEGACY_STORAGE = 1001;
     private static final int REQUEST_MANAGE_STORAGE = 1002;
@@ -233,6 +234,20 @@ public class EzQuakeLauncherActivity extends Activity {
             return;
         }
 
+        // Detect instead of asking: the pack is already in the game folder, or the
+        // question was answered before. The marker file lives next to the game data,
+        // so it survives uninstall/reinstall (the preferences above do not).
+        if (GameDataInstaller.allFilesPresent(baseDir, GameDataManifest.hdTextures())) {
+            prefs.edit().putBoolean(PREF_HD_TEXTURES_INSTALLED, true).apply();
+            startGameActivity();
+            return;
+        }
+        if (new File(baseDir, HD_PROMPT_MARKER).isFile()) {
+            prefs.edit().putBoolean(PREF_HD_TEXTURES_PROMPTED, true).apply();
+            startGameActivity();
+            return;
+        }
+
         if (isFinishing()) {
             startGameActivity();
             return;
@@ -247,6 +262,7 @@ public class EzQuakeLauncherActivity extends Activity {
                     @Override
                     public void onClick(android.content.DialogInterface dialog, int which) {
                         prefs.edit().putBoolean(PREF_HD_TEXTURES_PROMPTED, true).apply();
+                        markHdPrompted(baseDir);
                         setContentView(R.layout.activity_launcher_progress);
                         downloadStatusText = findViewById(R.id.download_status_text);
                         downloadProgressBar = findViewById(R.id.download_progress_bar);
@@ -263,10 +279,24 @@ public class EzQuakeLauncherActivity extends Activity {
                     @Override
                     public void onClick(android.content.DialogInterface dialog, int which) {
                         prefs.edit().putBoolean(PREF_HD_TEXTURES_PROMPTED, true).apply();
+                        markHdPrompted(baseDir);
                         startGameActivity();
                     }
                 })
                 .show();
+    }
+
+    private void markHdPrompted(File baseDir) {
+        try {
+            File marker = new File(baseDir, HD_PROMPT_MARKER);
+            File dir = marker.getParentFile();
+            if (dir != null) {
+                dir.mkdirs();
+            }
+            marker.createNewFile();
+        } catch (Exception ignored) {
+            // only costs a repeated question after a reinstall
+        }
     }
 
     // On-screen control artwork (Kenney "Mobile Controls", CC0) ships inside the
@@ -305,7 +335,40 @@ public class EzQuakeLauncherActivity extends Activity {
         }
     }
 
+    // First run only: install the bundled default config.cfg when the game folder has none.
+    // An existing config.cfg (the player's own) is never touched.
+    private void installDefaultConfigIfMissing() {
+        try {
+            File config = new File(BASEDIR, "ezquake/configs/config.cfg");
+            if (config.exists()) {
+                return;
+            }
+            File dir = config.getParentFile();
+            if (dir != null) {
+                dir.mkdirs();
+            }
+            java.io.InputStream in = getAssets().open("defaults/config.cfg");
+            try {
+                java.io.OutputStream out = new java.io.FileOutputStream(config);
+                try {
+                    byte[] buffer = new byte[16384];
+                    int read;
+                    while ((read = in.read(buffer)) > 0) {
+                        out.write(buffer, 0, read);
+                    }
+                } finally {
+                    out.close();
+                }
+            } finally {
+                in.close();
+            }
+        } catch (Exception ignored) {
+            // optional: without it the engine just starts with its built-in defaults
+        }
+    }
+
     private void startGameActivity() {
+        installDefaultConfigIfMissing();
         extractTouchAssets();
         startActivity(new Intent(this, EzQuakeActivity.class));
         finish();

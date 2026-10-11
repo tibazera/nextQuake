@@ -514,6 +514,7 @@ if(RENDERER_OPENGL)
 endif()
 
 if(RENDERER_VULKAN)
+    enable_language(CXX)   # Dear ImGui (menus) is C++
     find_program(GLSLANG_VALIDATOR glslangValidator REQUIRED)
     set(VULKAN_SHADER_DIR ${SOURCE_DIR}/vulkan_shaders)
     set(VULKAN_SHADER_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/vulkan_shaders)
@@ -554,6 +555,7 @@ if(RENDERER_VULKAN)
     add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_world_normals.vert vk_world_normals_vert.spv)
     add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_world_normals.frag vk_world_normals_frag.spv)
     add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_world_outline.frag vk_world_outline_frag.spv)
+    add_vulkan_shader(vulkan_spirv_shaders ${VULKAN_SHADER_DIR}/vk_imgui.vert vk_imgui_vert.spv)
     add_resources(shaders_vulkan ${vulkan_spirv_shaders})
 
     set(vulkan_renderer_headers
@@ -571,6 +573,17 @@ if(RENDERER_VULKAN)
             ${SOURCE_DIR}/vk_lightmaps.c
             ${SOURCE_DIR}/vk_main.c
             ${SOURCE_DIR}/vk_profile.c
+            ${SOURCE_DIR}/vk_imgui_glue.c
+            ${SOURCE_DIR}/menu_imgui.cpp
+            ${SOURCE_DIR}/menu_ui_bridge.c
+            ${SOURCE_DIR}/menu_scene.c
+            ${SOURCE_DIR}/vk_imgui.cpp
+            ${SOURCE_DIR}/imgui/imgui.cpp
+            ${SOURCE_DIR}/imgui/imgui_draw.cpp
+            ${SOURCE_DIR}/imgui/imgui_tables.cpp
+            ${SOURCE_DIR}/imgui/imgui_widgets.cpp
+            ${SOURCE_DIR}/imgui/backends/imgui_impl_sdl3.cpp
+            ${SOURCE_DIR}/imgui/backends/imgui_impl_vulkan.cpp
             ${SOURCE_DIR}/vk_md3.c
             ${SOURCE_DIR}/vk_misc.c
             ${SOURCE_DIR}/vk_physical_devices.c
@@ -1010,12 +1023,19 @@ endif()
 
 target_include_directories(ezquake PRIVATE
         ${SOURCE_DIR}/qwprot/src
+        ${SOURCE_DIR}/imgui
         ${EZQUAKE_SDL_INCLUDE_DIR}
         ${EZQUAKE_MINIZIP_INCLUDE_DIR}
         ${OBOE_INCLUDE_DIR}
 )
 
+# nextQuake release version: the VERSION file is the single source (also read by
+# app/build.gradle.kts and scripts/release.ps1).
+file(STRINGS "${CMAKE_SOURCE_DIR}/VERSION" NEXTQUAKE_VERSION_STRING LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/VERSION")
+
 target_compile_definitions(ezquake PRIVATE
+        NEXTQUAKE_VERSION="${NEXTQUAKE_VERSION_STRING}"
         BUILDSTRING="${CMAKE_SYSTEM_NAME}"
         CPUSTRING="${CMAKE_SYSTEM_PROCESSOR}"
 

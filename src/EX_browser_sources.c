@@ -36,6 +36,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "EX_browser.h"
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#define SB_LOG(...) __android_log_print(ANDROID_LOG_INFO, "nq-sb", __VA_ARGS__)
+#else
+#define SB_LOG(...) ((void)0)
+#endif
+
 #define SOURCES_LIST_FILENAME "sb/sources.txt"
 
 // Used by curl to read server lists from the web
@@ -217,8 +224,13 @@ static void SB_Process_URL_Buffer(const struct curl_buf *curl_buf, server_data *
 	for (p0 = buf, p1 = buf; p1 < buf + curl_buf->len; p1++) {
 		if (*p1 == '\n') {
 			*p1 = '\0';
-			NET_StringToAdr(p0, &addr);
-			servers[(*serversn)++] = Create_Server2(addr);
+			// the caller's array holds MAX_SERVERS entries
+			if (*serversn >= MAX_SERVERS) {
+				break;
+			}
+			if (NET_StringToAdr(p0, &addr)) {
+				servers[(*serversn)++] = Create_Server2(addr);
+			}
 			p0 = p1 + 1;
 		}
 	}
@@ -288,6 +300,14 @@ struct curl_buf *SB_Retrieve_Data(const source_data *s)
 	if (curl) {
 		curl_easy_setopt(curl, CURLOPT_URL, s->address.url);
 		curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+		// never block the sources thread forever (updating_sources would stay set)
+		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 8L);
+		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
+		curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+#ifdef __ANDROID__
+		// mbedtls build has no bundled CA list; use the system store
+		curl_easy_setopt(curl, CURLOPT_CAPATH, "/system/etc/security/cacerts");
+#endif
 	}
 	else {
 		Com_Printf_State(PRINT_FAIL, "SB_Retrieve_Data() Can't init cURL\n");
@@ -299,6 +319,7 @@ struct curl_buf *SB_Retrieve_Data(const source_data *s)
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, curl_buf);
 
 	res = curl_easy_perform(curl);
+	SB_LOG("curl %s -> %d (%s)", s->address.url, (int)res, curl_easy_strerror(res));
 	if (res != CURLE_OK) {
 		Com_Printf("SB_Retrieve_Data(): Could not read URL %s\n", s->address.url);
 		curl_easy_cleanup(curl);
@@ -328,7 +349,9 @@ static void SB_Update_Source_From_URL(const source_data *s, server_data *servers
 	}
 
 	// Update servers variable
+	SB_LOG("process url buffer %d bytes", (int)curl_buf->len);
 	SB_Process_URL_Buffer(curl_buf, servers, serversn);
+	SB_LOG("processed: %d servers", *serversn);
 
 	// Cache servers (file)
 	// No need to check for errors since we cleanup anyways
@@ -446,6 +469,7 @@ void Update_Source(source_data *s)
 
 	}
 
+	SB_LOG("update_source %s: %d servers, taking list lock", s->name, serversn);
 	SB_ServerList_Lock();
 	// copy all servers to source list
 	if (serversn > 0)
@@ -535,6 +559,7 @@ int Update_Multiple_Sources_Proc(void * lpParameter)
 	
     // update master sources
     newsocket = UDP_OpenSocket(PORT_ANY);
+    SB_LOG("update sources: %d sources, %d masters to query, socket=%d", psourcesn, total_masters, (int)newsocket);
 
     for (sourcenum = 0; sourcenum < psourcesn  &&  !abort_ping; sourcenum++)
     {
@@ -563,6 +588,9 @@ int Update_Multiple_Sources_Proc(void * lpParameter)
                           (struct sockaddr *)&server, sizeof(server) );
 		}
 
+		SB_LOG("master %s %d.%d.%d.%d:%d sendto=%d", s->name,
+			s->address.address.ip[0], s->address.address.ip[1], s->address.address.ip[2], s->address.address.ip[3],
+			(int)s->address.address.port, ret);
 		if (ret <= 0)
 			continue;
 
@@ -665,6 +693,7 @@ int Update_Multiple_Sources_Proc(void * lpParameter)
 	// Even 1 ms delay was enough during the tests, previously 500 ms was used.
     //Sys_MSleep(100);
 
+    SB_LOG("update sources done, updated=%d", updated);
     updating_sources = 0;
 	sb_queuedtriggers |= SB_TRIGGER_SOURCESUPDATED;
     return 0;

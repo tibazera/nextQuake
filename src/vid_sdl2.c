@@ -67,11 +67,14 @@ void Sys_ActiveAppChanged (void);
 #include "r_buffers.h"
 #include "r_renderer.h"
 #include "r_program.h"
+#include "menu_ui_bridge.h"
 
 SDL_GLContext GLM_SDL_CreateContext(SDL_Window* window);
 SDL_GLContext GLC_SDL_CreateContext(SDL_Window* window);
 qbool VK_Initialise(SDL_Window* window);
 #ifdef RENDERER_OPTION_VULKAN
+void VK_ImGui_VidInit(void);
+void MUIVK_TouchPointer(int phase, float x, float y);
 void VK_RequestSwapChainRecreate(void);
 void VK_RequestSurfaceRecreate(void);
 qbool VK_RefreshPresentationMode(void);
@@ -421,6 +424,11 @@ static qbool VID_SDL_ApplyAndroidDrawableResolution(const char *reason)
 // True if we need to release the mouse and let the OS show cursor again
 static qbool IN_OSMouseCursorRequired(void)
 {
+	// the Dear ImGui menus use the system pointer
+	if (M_ImGui_IsOpen()) {
+		return true;
+	}
+
 	// Explicit check here for key_game... really setting all modes is equivalent to "in_grab_windowed_mouse 0"
 	qbool in_os_cursor_mode = (key_dest != key_game || cls.demoplayback) && (in_release_mouse_modes.integer & (1 << key_dest));
 
@@ -586,6 +594,7 @@ static void IN_Frame(void)
 		return;
 	}
 
+	MUI_Console_Pump();
 	HandleEvents();
 
 	if (!ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
@@ -923,16 +932,19 @@ static void IN_UpdateTextInputState(void)
 #ifdef __ANDROID__
 	bool active = SDL_TextInputActive(sdl_window);
 	bool want = IN_TouchWantsTextInput();
+	// A Dear ImGui text field has focus: it needs TEXT_INPUT events even with a physical
+	// keyboard (where the soft keyboard stays closed, see IN_TouchWantsTextInput).
+	bool imgui_text = M_ImGui_IsOpen() && MenuUI_WantsTextInput();
 
 	if (IN_TouchConsumeKeyboardNudge() && want) {
 		SDL_StopTextInput(sdl_window);
 		active = false;
 	}
-	if (want && !active) {
-		SDL_SetHintWithPriority(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "1", SDL_HINT_OVERRIDE);
+	if ((want || imgui_text) && !active) {
+		SDL_SetHintWithPriority(SDL_HINT_ENABLE_SCREEN_KEYBOARD, want ? "1" : "0", SDL_HINT_OVERRIDE);
 		SDL_StartTextInput(sdl_window);
 	}
-	else if (!want && active) {
+	else if (!want && !imgui_text && active) {
 		SDL_StopTextInput(sdl_window);
 		SDL_SetHintWithPriority(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "0", SDL_HINT_OVERRIDE);
 	}
@@ -1066,6 +1078,10 @@ static void HandleEvents(void)
 #endif
 
 	while (SDL_PollEvent(&event)) {
+		// the Dear ImGui menus see every event first; they let releases through to clear held keys
+		if (MenuUI_ProcessEvent(&event)) {
+			continue;
+		}
 		switch (event.type) {
 		case SDL_QUIT:
 			Sys_Quit();
@@ -1181,6 +1197,13 @@ static void HandleEvents(void)
 		case SDL_EVENT_FINGER_MOTION:
 		case SDL_EVENT_FINGER_UP:
 		case SDL_EVENT_FINGER_CANCELED:
+#ifdef RENDERER_OPTION_VULKAN
+			if (M_ImGui_IsOpen()) {
+				// a finger on the Dear ImGui menus acts as a mouse pointer
+				MUIVK_TouchPointer(event.type == SDL_EVENT_FINGER_DOWN ? 0 : event.type == SDL_EVENT_FINGER_MOTION ? 1 : 2, event.tfinger.x, event.tfinger.y);
+				break;
+			}
+#endif
 			IN_TouchFinger(event.type == SDL_EVENT_FINGER_DOWN ? IN_TOUCH_DOWN :
 			               event.type == SDL_EVENT_FINGER_MOTION ? IN_TOUCH_MOTION :
 			               event.type == SDL_EVENT_FINGER_UP ? IN_TOUCH_UP : IN_TOUCH_CANCEL,
@@ -1229,6 +1252,10 @@ void VID_SoftRestart(void)
 
 void VID_Shutdown(qbool restart)
 {
+	// the menus own Vulkan objects: release them while the device still exists
+	M_ImGui_VidReady(false);
+	MenuUI_VidShutdown();
+
 	IN_DeactivateMouse();
 
 	if (sdl_window) SDL_StopTextInput(sdl_window);
@@ -1950,6 +1977,13 @@ static void VID_SDL_Init(void)
 	r_swapInterval.modified = true;
 
 	R_Initialise();
+
+#ifdef RENDERER_OPTION_VULKAN
+	if (R_UseVulkan() && !M_ClassicMenus()) {
+		VK_ImGui_VidInit();
+		M_ImGui_VidReady(true);
+	}
+#endif
 
 	//always get/set refresh rate
 	int display_nbr;

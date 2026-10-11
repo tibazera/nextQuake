@@ -14,6 +14,10 @@ menu cursor and clicks.
 #include "quakedef.h"
 #include "input.h"
 #include "keys.h"
+#include "menu.h"
+
+// menu_imgui.cpp: a Dear ImGui text field has focus
+extern int MenuUI_WantsTextInput(void);
 #include "draw.h"
 #include "vid.h"
 #include "screen.h"
@@ -26,6 +30,7 @@ cvar_t in_touch            = { "in_touch",            "2" };    // 0 off, 1 on, 
 cvar_t in_touch_scale      = { "in_touch_scale",      "1" };
 cvar_t in_touch_alpha      = { "in_touch_alpha",      "0.35" };
 cvar_t in_touch_look_sens  = { "in_touch_look_sens",  "1" };    // negative inverts
+cvar_t in_touch_console_size = { "in_touch_console_size", "0.4" };   // console height (fraction of the screen) while the soft keyboard is up
 
 enum { B_FIRE, B_JUMP, B_NEXT, B_PREV, B_SCORES, B_CHAT, B_CONSOLE, B_MENU,
        B_UP, B_DOWN, B_LEFT, B_RIGHT, B_ENTER, B_BACK, B_KBD, B_COUNT };
@@ -118,6 +123,7 @@ void IN_TouchInit(void)
 	Cvar_Register(&in_touch_scale);
 	Cvar_Register(&in_touch_alpha);
 	Cvar_Register(&in_touch_look_sens);
+	Cvar_Register(&in_touch_console_size);
 	Cvar_ResetCurrentGroup();
 }
 
@@ -157,8 +163,18 @@ qbool IN_TouchWantsTextInput(void)
 {
 	// The soft keyboard also produces TEXTINPUT, which would double every key
 	// typed on a physical keyboard; keep it closed while one is in use.
-	return active && (IN_TouchConsoleActive() || key_dest == key_message)
+	return active && (IN_TouchConsoleActive() || key_dest == key_message || (M_ImGui_IsOpen() && MenuUI_WantsTextInput()))
 		&& Sys_DoubleTime() - last_physical_key > 10.0;
+}
+
+// While the soft keyboard is up, keep the console (and so its input line) in the part of the
+// screen the keyboard does not cover.
+float IN_TouchConsoleLines(float lines)
+{
+	if (IN_TouchWantsTextInput()) {
+		return min(lines, vid.height * bound(0.2f, in_touch_console_size.value, 0.8f));
+	}
+	return lines;
 }
 
 qbool IN_TouchConsumeKeyboardNudge(void)
@@ -397,6 +413,11 @@ void IN_TouchFinger(int phase, long long id, float x, float y, float dx, float d
 {
 	finger_t *f;
 
+	// the Dear ImGui menus take the finger as a pointer (see vid_sdl2.c)
+	if (M_ImGui_IsOpen()) {
+		return;
+	}
+
 	if (!active) {
 		// Auto mode: a real touch turns the overlay on, unless a mouse or
 		// keyboard was used a moment ago (then it is a stray/synthesised event).
@@ -600,7 +621,7 @@ void IN_TouchDraw(void)
 	float alpha = bound(0.1f, in_touch_alpha.value, 1.0f);
 	int b, i;
 
-	if (!active) {
+	if (!active || M_ImGui_IsOpen()) {
 		return;
 	}
 
