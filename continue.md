@@ -1,3 +1,12 @@
+## Release Android 0.1.0 — 2026-10-21
+
+- Identidade pública definida: nome `nextQuake`, application ID `org.nextquake.android`; namespace Java e pasta `Documents/ezQuake` preservados.
+- Chave RSA 4096 de produção criada fora do Git e Gradle configurado por propriedades locais. Nunca publicar ou perder a chave/credenciais.
+- Build Release limpo, arm64/Vulkan, versão 0.1.0 e assinatura v2 passaram; `tests/touch-keyboard.ps1` também passou.
+- Corrigidas declarações ausentes da integração ImGui e coberto o estado de teclado do ImGui no teste.
+- Alterações locais experimentais em `src/in_touch.c` e `src/vid_sdl2.c`, além dos patches soltos, ficaram fora da versão.
+- Pendente nesta nota: teste manual no celular e publicação da tag/release no GitHub.
+
 ## Retomada para Claude — 2026-10-10
 
 Pasta nova independente: E:\Projetos Linux\nextQuake. Leia CLAUDE.md primeiro para o resumo da transicao, arquivos locais de splash/icones e proximos passos. main/origin main publicados ate e05182f7; branding local ainda nao commitado. Submodulos desta copia ainda nao inicializados. Nenhum APK novo desta pasta foi gerado.

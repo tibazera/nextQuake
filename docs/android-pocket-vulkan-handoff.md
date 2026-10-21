@@ -1,3 +1,12 @@
+## Release Android 0.1.0 — 2026-10-21
+
+Primeira versão pública preparada com nome `nextQuake`, application ID
+`org.nextquake.android`, arm64/Vulkan e assinatura de produção. A pasta de dados
+continua `/storage/emulated/0/Documents/ezQuake`. Build Release limpo e
+`tests/touch-keyboard.ps1` passaram. Experimentos locais não commitados de touch
+e os patches soltos não fazem parte da versão. Teste manual no aparelho ainda é
+necessário.
+
 ## Retomada para Claude — 2026-10-10
 
 Pasta nova independente: E:\Projetos Linux\nextQuake. Leia CLAUDE.md primeiro para o resumo da transicao, arquivos locais de splash/icones e proximos passos. main/origin main publicados ate e05182f7; branding local ainda nao commitado. Submodulos desta copia ainda nao inicializados. Nenhum APK novo desta pasta foi gerado.
