@@ -7,7 +7,7 @@
 - Alterações locais experimentais em `src/in_touch.c` e `src/vid_sdl2.c`, além dos patches soltos, ficaram fora da versão.
 - Tag/release `v0.1.0` publicada: https://github.com/tibazera/nextQuake/releases/tag/v0.1.0
 - APK: 17.732.274 bytes; SHA-256 `2358BB15047C2C0C10963B2C11D1B4091384CE50F72DBA2FDC0F8A7BEE681156`.
-- Pendente: teste manual no celular.
+- Validado no celular USB em 2026-10-21: APK instalado, abriu e Tiago confirmou que funcionou corretamente. O pacote antigo `org.ezquake.android` foi preservado em paralelo.
 
 ## Retomada para Claude — 2026-10-10
 

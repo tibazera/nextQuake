@@ -9,6 +9,8 @@ necessário.
 
 Release publicada: `v0.1.0`, APK Android arm64 com 17.732.274 bytes e SHA-256
 `2358BB15047C2C0C10963B2C11D1B4091384CE50F72DBA2FDC0F8A7BEE681156`.
+Instalação e abertura no celular USB foram confirmadas por Tiago em 2026-10-21;
+a versão funcionou corretamente e o pacote ezQuake anterior permaneceu instalado.
 
 ## Retomada para Claude — 2026-10-10
 
