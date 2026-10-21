@@ -7,6 +7,9 @@ continua `/storage/emulated/0/Documents/ezQuake`. Build Release limpo e
 e os patches soltos não fazem parte da versão. Teste manual no aparelho ainda é
 necessário.
 
+Release publicada: `v0.1.0`, APK Android arm64 com 17.732.274 bytes e SHA-256
+`2358BB15047C2C0C10963B2C11D1B4091384CE50F72DBA2FDC0F8A7BEE681156`.
+
 ## Retomada para Claude — 2026-10-10
 
 Pasta nova independente: E:\Projetos Linux\nextQuake. Leia CLAUDE.md primeiro para o resumo da transicao, arquivos locais de splash/icones e proximos passos. main/origin main publicados ate e05182f7; branding local ainda nao commitado. Submodulos desta copia ainda nao inicializados. Nenhum APK novo desta pasta foi gerado.

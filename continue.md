@@ -5,7 +5,9 @@
 - Build Release limpo, arm64/Vulkan, versão 0.1.0 e assinatura v2 passaram; `tests/touch-keyboard.ps1` também passou.
 - Corrigidas declarações ausentes da integração ImGui e coberto o estado de teclado do ImGui no teste.
 - Alterações locais experimentais em `src/in_touch.c` e `src/vid_sdl2.c`, além dos patches soltos, ficaram fora da versão.
-- Pendente nesta nota: teste manual no celular e publicação da tag/release no GitHub.
+- Tag/release `v0.1.0` publicada: https://github.com/tibazera/nextQuake/releases/tag/v0.1.0
+- APK: 17.732.274 bytes; SHA-256 `2358BB15047C2C0C10963B2C11D1B4091384CE50F72DBA2FDC0F8A7BEE681156`.
+- Pendente: teste manual no celular.
 
 ## Retomada para Claude — 2026-10-10
 

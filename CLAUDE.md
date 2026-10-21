@@ -2,7 +2,7 @@
 
 ## Estado atual — 2026-10-21
 
-A primeira versão pública Android é `0.1.0`. O nome exibido é `nextQuake` e o
+A primeira versão pública Android `v0.1.0` foi publicada no GitHub Releases. O nome exibido é `nextQuake` e o
 application ID é `org.nextquake.android`; a pasta de dados continua sendo
 `/storage/emulated/0/Documents/ezQuake`. Releases usam a chave de produção local
 `%USERPROFILE%\.android\nextquake-release.jks`, configurada fora do Git em
