@@ -36,6 +36,8 @@ The game is fully playable with a mouse and keyboard on a monitor: connect a **p
 
 **Video output over USB-C.** The phone must be able to send video through its USB-C port. On current phones this is normally **DisplayPort Alt Mode** (the older MHL standard is rarely used on USB-C phones). Many phones have no video output at all; others can only mirror at 60 Hz. A refresh rate above 60 Hz on the monitor needs all of these to support it: the phone's video output, the hub or adapter, the cable and the monitor. Phone makers rarely publish the external-display refresh rate, so check it on your own setup.
 
+The **LD39 USB-C cable** is also a reported option for connecting some mid-range phones to a monitor, but its output is limited to **60 Hz**. Phone compatibility still depends on the device, so verify support before buying the cable.
+
 Phones that are reported to have DisplayPort Alt Mode (video output over USB-C), from third-party lists that are not authoritative:
 
 - Samsung Galaxy S24 Ultra and S25 Ultra (also Samsung DeX, see [known issues](#known-issues)).
