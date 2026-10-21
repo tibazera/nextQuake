@@ -253,6 +253,7 @@ void MenuUI_VidInit(const void *vulkan_init);
 void MenuUI_VidShutdown(void);
 // returns true if the event was consumed by the menu and must not reach the game
 mui_bool MenuUI_ProcessEvent(const void *sdl_event);
+mui_bool MenuUI_WantsTextInput(void);
 // draws the menu (if open) on top of the finished frame
 void MenuUI_Render(void);
 void MenuUI_SetPage(int page);

@@ -55,6 +55,7 @@ void Sys_ActiveAppChanged (void);
 #include "tr_types.h"
 #include "input.h"
 #include "in_touch.h"
+#include "menu.h"
 #include "rulesets.h"
 #include "utils.h"
 #include "textencoding.h"
