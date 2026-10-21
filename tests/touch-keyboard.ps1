@@ -37,6 +37,9 @@ enum { K_ESCAPE = 27, K_MOUSE1 = 200 };
 static int key_dest;
 static bool active = true, auto_touch = true, kbd_nudge;
 static bool last_game_dest;
+static bool imgui_open, imgui_wants_text;
+static qbool M_ImGui_IsOpen(void) { return imgui_open; }
+static int MenuUI_WantsTextInput(void) { return imgui_wants_text; }
 static int attack_fingers;
 static double last_look_tap = -1.0;
 static float last_look_tap_x, last_look_tap_y;
@@ -78,6 +81,9 @@ int main(void) {
     assert(!GameDest());
     cls.state = ca_active;
     assert(!IN_TouchWantsTextInput());
+    imgui_open = imgui_wants_text = true;
+    assert(IN_TouchWantsTextInput());
+    imgui_open = imgui_wants_text = false;
     assert(GameDest());
     ButtonPress(B_NEXT);
     assert(strcmp(command, "weapon 10\n") == 0);

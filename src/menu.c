@@ -1438,6 +1438,7 @@ void M_Draw(void)
 		case m_help:			M_Help_Draw(); break;
 		case m_quit:			M_Quit_Draw(); break;
 		case m_demos:			Menu_Demo_Draw(); break;
+		case m_imgui:			break; // rendered after the game frame by M_ImGui_Frame
 	}
 
 	if (scr_scaleMenu.value) {
