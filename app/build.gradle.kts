@@ -15,6 +15,12 @@ val nextQuakeVersionCode = nextQuakeVersion.split(".").let { parts ->
 }
 val ndkRoot = System.getenv("ANDROID_NDK_HOME")
     ?: "$sdkRoot/ndk/$ndkVersionPinned"
+val releaseStoreFile = providers.gradleProperty("NEXTQUAKE_STORE_FILE").orNull
+val releaseStorePassword = providers.gradleProperty("NEXTQUAKE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.gradleProperty("NEXTQUAKE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.gradleProperty("NEXTQUAKE_KEY_PASSWORD").orNull
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+    .all { !it.isNullOrBlank() }
 
 android {
     namespace = "org.ezquake.android"
@@ -22,7 +28,7 @@ android {
     ndkVersion = ndkVersionPinned
 
     defaultConfig {
-        applicationId = "org.ezquake.android"
+        applicationId = "org.nextquake.android"
         minSdk = 29
         targetSdk = 36
         versionCode = nextQuakeVersionCode
@@ -68,6 +74,17 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isDebuggable = false
@@ -76,9 +93,7 @@ android {
                     arguments += "-DCMAKE_BUILD_TYPE=Release"
                 }
             }
-            // Signed with the debug keystore for internal testing; replace
-            // with a real signing config before any public distribution.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseSigning) signingConfigs.getByName("release") else null
         }
     }
 

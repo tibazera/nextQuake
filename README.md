@@ -62,7 +62,7 @@ Sources: [List of phones with external monitor support](https://www.faceofit.com
 
 **Installing the APK alone is not enough: the client also needs Quake/nQuake/ezQuake game data in the correct folder.** The current Android build requires Android 10 or newer, an arm64 device, and Vulkan support.
 
-1. Install the provided release APK. If Android asks, allow APK installation for the browser or file manager you are using. The application may still appear as **ezQuake**.
+1. Install the provided release APK. If Android asks, allow APK installation for the browser or file manager you are using. The application appears as **nextQuake**.
 2. Obtain a working nQuake/ezQuake installation on your computer, including its game data. Keep a backup of your existing configuration before copying or merging files.
 3. Connect the phone to your computer using USB file transfer, or use a file manager on the phone. In **internal storage**, create this exact folder:
 
@@ -122,4 +122,4 @@ Building for iOS requires macOS and Xcode, locally or remotely. No IPA is availa
 
 Credit goes to QW-Group, the ezQuake authors, and the contributors to the original code. The GNU GPL v2 license inherited from ezQuake is preserved in [LICENSE](LICENSE). Keep the original copyright notices and author attribution. Proprietary Quake game data (PAK/PK3 files and maps) is not included in this repository.
 
-The application's display name and Android package identifier are still inherited from ezQuake. Updating the application branding will be a separate task.
+The Android application ID is `org.nextquake.android`. The Java namespace and the `Documents/ezQuake` data folder remain compatible with the ezQuake base.

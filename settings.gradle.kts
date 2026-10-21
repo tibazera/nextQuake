@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ezquake-android"
+rootProject.name = "nextquake-android"
 include(":app")

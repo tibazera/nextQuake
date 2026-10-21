@@ -40,10 +40,17 @@ source for:
 
 ## Signing
 
-The release build is currently signed with the debug keystore (internal tests).
-Before a public release create a real keystore, keep it out of git, and point
-`signingConfigs` in `app/build.gradle.kts` at it. Changing the key later breaks
-in-place updates for installed users.
+Public releases require these Gradle properties, normally stored in the user's
+`~/.gradle/gradle.properties` file so neither the key nor its passwords enter Git:
+
+- `NEXTQUAKE_STORE_FILE`
+- `NEXTQUAKE_STORE_PASSWORD`
+- `NEXTQUAKE_KEY_ALIAS`
+- `NEXTQUAKE_KEY_PASSWORD`
+
+Keep a secure backup of both the keystore and its passwords. Changing or losing
+the key prevents in-place updates for installed users. Without these properties,
+Gradle produces an unsigned Release APK and `scripts/release.ps1` rejects it.
 
 ## Pre-release checklist (on a device)
 

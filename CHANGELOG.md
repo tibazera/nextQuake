@@ -13,6 +13,8 @@ First nextQuake release, based on ezQuake 3.7.0-dev (QW-Group, GPL v2).
 - Vulkan performance work: static world index buffer, bind caching, lighter
   outline pass (`vk_outline_scale`), per-device resolution list in Options.
 - nextQuake splash screen and app icon.
+- Public Android identity (`nextQuake`, application ID `org.nextquake.android`)
+  and a dedicated release-signing key for upgrade-compatible APKs.
 - `f_version` now reports `nextQuake <version> (ezQuake <base>) <OS>:<renderer>`,
   e.g. `nextQuake 0.1.0 (ezQuake 3.7.0-dev) Android 14:Vulkan`,
   instead of the inherited Linux platform string. The update check now looks at
