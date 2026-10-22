@@ -48,15 +48,15 @@ jobs:
     - name: Download MoltenVK
       run: |
         mkdir -p .moltenvk
-        curl -sSfL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-ios.tar" | tar -x -C .moltenvk
-        find .moltenvk -maxdepth 4 -name '*.xcframework'
-        echo "MOLTENVK_XCFRAMEWORK=$(find "$PWD/.moltenvk" -path '*static*' -name 'MoltenVK.xcframework' | head -1)" >> "$GITHUB_ENV"
+        curl -sSfL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-all.tar" | tar -x -C .moltenvk
+        find .moltenvk -path '*static*' -name 'libMoltenVK.a'
+        echo "MOLTENVK_LIBRARY=$(find "$PWD/.moltenvk" -path '*static*' -path '*ios-*simulator*' -name 'libMoltenVK.a' | head -1)" >> "$GITHUB_ENV"
 
     - name: Bootstrap vcpkg
       run: ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
     - name: Configure
-      run: cmake --preset ios-simulator-arm64 -DMOLTENVK_XCFRAMEWORK="$MOLTENVK_XCFRAMEWORK"
+      run: cmake --preset ios-simulator-arm64 -DMOLTENVK_LIBRARY="$MOLTENVK_LIBRARY"
 
     - name: Build
       run: |

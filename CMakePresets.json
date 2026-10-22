@@ -209,7 +209,7 @@
         {
             "name": "ios-simulator-arm64",
             "displayName": "Xcode iOS Simulator (arm64)",
-            "description": "iOS simulator build (Vulkan through MoltenVK); pass -DMOLTENVK_XCFRAMEWORK=<path>",
+            "description": "iOS simulator build (Vulkan through MoltenVK); pass -DMOLTENVK_LIBRARY=<libMoltenVK.a>",
             "generator": "Xcode",
             "inherits": "template-vcpkg",
             "cacheVariables": {
