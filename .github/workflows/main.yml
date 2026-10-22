@@ -1,14 +1,9 @@
 name: main
 
+# Inherited ezQuake desktop builds (Linux/Windows/macOS). nextQuake targets only
+# Android and iOS, so they run only when started by hand.
 on:
-  push:
-    # Only build branches on push, tags will be handled by 'release' job.
-    branches:
-      - '**'
-  pull_request:
   workflow_dispatch:
-  release:
-    types: [published]
 
 jobs:
   build:
