@@ -53,18 +53,6 @@ void MUI_PlaySound(const char *sample);
 void MUI_CloseMenu(void);                 // leave the menu (to the game or the console)
 void MUI_ToggleConsole(void);
 
-// console page: scrollback is read straight from the engine's console buffer
-int MUI_Console_LineCount(void);
-// line "back" lines before the newest one; text is plain ASCII, colors are ABGR like ImGui's. Returns
-// the length, or -1 if there is no such line.
-int MUI_Console_Line(int back, char *text, unsigned int *colors, int size);
-void MUI_Console_Execute(const char *text);   // same path as typing the line and pressing Enter
-void MUI_Console_Complete(char *text, int size);
-void MUI_Console_History(int older, char *text, int size);
-void MUI_Console_Clear(void);
-// true while the Android soft keyboard is (about to be) up and covers the lower part of the screen
-mui_bool MUI_SoftKeyboardUp(void);
-void MUI_Console_Pump(void);              // run a queued line, from the main loop (not inside a frame)
 void MUI_Quit(void);                      // quits immediately, confirmation is up to the menu
 mui_bool MUI_ConfirmQuit(void);           // cl_confirmquit
 float MUI_MenuScale(void);                // menu_scale

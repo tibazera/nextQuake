@@ -25,6 +25,9 @@ See the GNU General Public License for more details.
 // they touch, so the engine's state caching isn't disturbed.
 
 #include <SDL3/SDL.h>
+#ifdef __ANDROID__
+extern "C" void IN_TouchHapticPulse(void);
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -39,6 +42,7 @@ See the GNU General Public License for more details.
 
 #include "imgui.h"
 #include "imgui_internal.h" // keyboard navigation needs the focused window
+#include "fonts/oxanium.h"
 #include "vk_imgui_bridge.h"
 
 #include "menu_ui_bridge.h"
@@ -53,6 +57,7 @@ struct Backend {
 	bool initialised = false;
 	bool was_open = false;
 	ImFont *font = nullptr;
+	ImFont *font_bold = nullptr;
 	float scale = 1.0f;
 };
 
@@ -191,6 +196,22 @@ void ApplyStyle(float scale)
 	c[ImGuiCol_ModalWindowDimBg]     = ImVec4(0, 0, 0, 0.60f);
 	c[ImGuiCol_TextSelectedBg]       = ImVec4(COLOR_ACCENT.x, COLOR_ACCENT.y, COLOR_ACCENT.z, 0.35f);
 
+#ifdef __ANDROID__
+	// touch: finger-sized targets (mobile UI guidelines ask for ~48dp), invisible extra hit
+	// margin around every item, and a pressed state that is clearly visible
+	style.FramePadding = ImVec2(18, 14);
+	style.ItemSpacing = ImVec2(14, 14);
+	style.ItemInnerSpacing = ImVec2(10, 8);
+	style.CellPadding = ImVec2(10, 12);
+	style.TouchExtraPadding = ImVec2(8, 8);
+	style.ScrollbarSize = 20;
+	style.GrabMinSize = 28;
+	style.FrameRounding = 12;
+	style.GrabRounding = 12;
+	c[ImGuiCol_ButtonHovered] = c[ImGuiCol_Button];   // no hover on touch, a lingering highlight only confuses
+	c[ImGuiCol_ButtonActive] = ImVec4(COLOR_ACCENT.x, COLOR_ACCENT.y, COLOR_ACCENT.z, 0.45f);
+	c[ImGuiCol_FrameBgActive] = ImVec4(COLOR_ACCENT.x, COLOR_ACCENT.y, COLOR_ACCENT.z, 0.30f);
+#endif
 	style.ScaleAllSizes(scale);
 	style.FontSizeBase = FONT_BODY;
 	style.FontScaleMain = scale;
@@ -202,7 +223,7 @@ float S(float v)
 }
 
 struct FontSize {
-	explicit FontSize(float size) { ImGui::PushFont(nullptr, size); }
+	explicit FontSize(float size, ImFont *font = nullptr) { ImGui::PushFont(font, size); }
 	~FontSize() { ImGui::PopFont(); }
 };
 
@@ -280,7 +301,7 @@ void Badge(const char *text, const ImVec4 &bg, const ImVec4 &fg)
 void SectionTitle(const char *title, const char *subtitle = nullptr)
 {
 	{
-		FontSize fs(FONT_TITLE);
+		FontSize fs(FONT_TITLE, backend.font_bold);
 		ImGui::TextUnformatted(title);
 	}
 	if (subtitle) {
@@ -594,10 +615,10 @@ void DrawLogo(ImDrawList *dl, ImVec2 pos, float height)
 	// wordmark only
 	float font_size = S(FONT_LARGE * 1.15f);
 	float x = pos.x;
-	ImVec2 next = backend.font->CalcTextSizeA(font_size, FLT_MAX, 0, "NEXT");
+	ImVec2 next = backend.font_bold->CalcTextSizeA(font_size, FLT_MAX, 0, "NEXT");
 	float y = pos.y + (height - next.y) * 0.5f;
-	dl->AddText(backend.font, font_size, ImVec2(x, y), Col(COLOR_TEXT_DIM), "NEXT");
-	dl->AddText(backend.font, font_size, ImVec2(x + next.x, y), Col(COLOR_TEXT), "QUAKE");
+	dl->AddText(backend.font_bold, font_size, ImVec2(x, y), Col(COLOR_TEXT_DIM), "NEXT");
+	dl->AddText(backend.font_bold, font_size, ImVec2(x + next.x, y), Col(COLOR_TEXT), "QUAKE");
 }
 
 void SetPage(int page);
@@ -678,7 +699,12 @@ void DrawTopBar()
 			ImGui::SameLine();
 		}
 		if (NavItem(nav_items[i].label, current_page == nav_items[i].page, nav_items[i].page == MUI_PAGE_QUIT, height)) {
-			SetPage(current_page == nav_items[i].page ? MUI_PAGE_HOME : nav_items[i].page);
+			if (nav_items[i].page == MUI_PAGE_CONSOLE) {
+				MUI_ToggleConsole();   // the engine's own console
+			}
+			else {
+				SetPage(current_page == nav_items[i].page ? MUI_PAGE_HOME : nav_items[i].page);
+			}
 		}
 	}
 
@@ -974,7 +1000,7 @@ void ServerDetails(const mui_server_t &s)
 	}
 	TextDim("%s", s.address);
 	ImGui::SameLine();
-	if (ImGui::SmallButton("Copy")) {
+	if (ImGui::Button("Copy")) {
 		MUI_SetClipboard(s.address);
 	}
 
@@ -1863,186 +1889,6 @@ void DrawBindingOverlay()
 }
 
 //=============================================================================
-// console
-//=============================================================================
-
-struct ConsoleState {
-	char input[256] = "";
-	bool stick_bottom = true;
-	bool refocus = false;
-	std::string text_pool;            // visual rows, rebuilt every frame
-	std::vector<ImU32> color_pool;
-	struct Row { int start, len; };
-	std::vector<Row> rows;
-};
-ConsoleState console;
-
-int ConsoleInputCallback(ImGuiInputTextCallbackData *data)
-{
-	char text[256];
-
-	snprintf(text, sizeof(text), "%s", data->Buf);
-	if (data->EventFlag == ImGuiInputTextFlags_CallbackCompletion) {
-		MUI_Console_Complete(text, sizeof(text));
-	}
-	else if (data->EventFlag == ImGuiInputTextFlags_CallbackHistory) {
-		MUI_Console_History(data->EventKey == ImGuiKey_UpArrow, text, sizeof(text));
-	}
-	else {
-		return 0;
-	}
-	data->DeleteChars(0, data->BufTextLen);
-	data->InsertChars(0, text);
-	return 0;
-}
-
-void DrawConsole()
-{
-	ImGuiIO &io = ImGui::GetIO();
-	// the on-screen keyboard covers the lower half of the screen: keep the console above it
-	// (only the soft keyboard does that; with a physical keyboard the console keeps its full size)
-	float max_height = MUI_SoftKeyboardUp() ? io.DisplaySize.y * 0.5f - TopBarHeight() - S(30) : 0;
-
-	if (!BeginPage("##console", 0, max_height)) {
-		EndPage();
-		return;
-	}
-
-	const float font_size = S(FONT_BODY * 0.85f);
-	const float line_height = font_size * 1.15f;
-	float cell_width;
-	{
-		FontSize fs(FONT_BODY * 0.85f);
-		cell_width = ImGui::CalcTextSize("M").x * 0.9f;
-	}
-
-	float bottom_row = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.y;
-	ImGui::BeginChild("##conlog", ImVec2(0, -bottom_row), false, ImGuiWindowFlags_NoMove);
-
-	// scrollback, oldest first, wrapped to the width available
-	int cols = std::max(20, (int)(ImGui::GetContentRegionAvail().x / cell_width));
-	int total = std::min(MUI_Console_LineCount(), 500);
-	char text[512];
-	unsigned int colors[512];
-
-	console.text_pool.clear();
-	console.color_pool.clear();
-	console.rows.clear();
-	for (int back = total - 1; back >= 0; back--) {
-		int len = MUI_Console_Line(back, text, colors, sizeof(text));
-		if (len < 0) {
-			continue;
-		}
-		if (len == 0) {
-			console.rows.push_back({ (int)console.text_pool.size(), 0 });
-			continue;
-		}
-		for (int off = 0; off < len; off += cols) {
-			int n = std::min(cols, len - off);
-			console.rows.push_back({ (int)console.text_pool.size(), n });
-			console.text_pool.append(text + off, n);
-			console.color_pool.insert(console.color_pool.end(), colors + off, colors + off + n);
-		}
-	}
-
-	// dragging scrolls (touch has no wheel); scrolling up releases the follow-the-end behaviour
-	float scroll = ImGui::GetScrollY();
-	float scroll_max = ImGui::GetScrollMaxY();
-	if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, S(4))) {
-		scroll = std::max(0.0f, std::min(scroll - io.MouseDelta.y, scroll_max));
-		ImGui::SetScrollY(scroll);
-		console.stick_bottom = false;
-	}
-	if (ImGui::IsWindowHovered() && io.MouseWheel > 0) {
-		console.stick_bottom = false;
-	}
-	if (scroll >= scroll_max - 2) {
-		console.stick_bottom = true;
-	}
-
-	ImVec2 origin = ImGui::GetCursorScreenPos();
-	ImGui::Dummy(ImVec2(0, console.rows.size() * line_height));
-	ImDrawList *dl = ImGui::GetWindowDrawList();
-	float view_h = ImGui::GetWindowHeight();
-	int first = std::max(0, (int)(scroll / line_height));
-	int last = std::min((int)console.rows.size(), (int)((scroll + view_h) / line_height) + 2);
-	for (int r = first; r < last; r++) {
-		const ConsoleState::Row &row = console.rows[r];
-		float y = origin.y + r * line_height;
-
-		for (int i = 0; i < row.len; i++) {
-			const char *c = &console.text_pool[row.start + i];
-
-			if (*c != ' ') {
-				dl->AddText(backend.font, font_size, ImVec2(origin.x + i * cell_width, y), console.color_pool[row.start + i], c, c + 1);
-			}
-		}
-	}
-	if (console.stick_bottom) {
-		ImGui::SetScrollHereY(1.0f);
-	}
-	ImGui::EndChild();
-
-	// input line + buttons
-	bool send = false, complete = false, clear = false, close = false;
-	float spacing = ImGui::GetStyle().ItemSpacing.x;
-	float buttons = 0;
-	const char *labels[] = { "Send", "Tab", "Clear", "Close" };
-	for (const char *label : labels) {
-		buttons += ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 2 + spacing;
-	}
-
-	if (ImGui::IsWindowAppearing() || console.refocus) {
-		ImGui::SetKeyboardFocusHere();
-		console.refocus = false;
-	}
-	ImGui::SetNextItemWidth(std::max(S(120), ImGui::GetContentRegionAvail().x - buttons));
-	if (ImGui::InputText("##coninput", console.input, sizeof(console.input),
-		ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_CallbackCompletion | ImGuiInputTextFlags_CallbackHistory,
-		ConsoleInputCallback)) {
-		send = true;
-	}
-	bool input_active = ImGui::IsItemActive();
-	ImGui::SameLine();
-	if (AccentButton("Send")) {
-		send = true;
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Tab")) {
-		complete = true;
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Clear")) {
-		clear = true;
-	}
-	ImGui::SameLine();
-	if (ImGui::Button("Close")) {
-		close = true;
-	}
-
-	if (complete) {
-		MUI_Console_Complete(console.input, sizeof(console.input));
-	}
-	if (send) {
-		MUI_Console_Execute(console.input);
-		console.input[0] = 0;
-		console.stick_bottom = true;
-		// keep the keyboard up for the next line (focused before the field next frame)
-		console.refocus = true;
-	}
-	else if (!input_active && !complete) {
-		// nothing
-	}
-	if (clear) {
-		MUI_Console_Clear();
-	}
-	if (close) {
-		SetPage(MUI_PAGE_HOME);
-	}
-	EndPage();
-}
-
-//=============================================================================
 // quit
 //=============================================================================
 
@@ -2094,11 +1940,11 @@ void DrawHome()
 	// cinematic caption: name of the background map
 	std::string map = ToUpper(client.scene_map);
 	float big = S(FONT_HUGE);
-	ImVec2 ts = backend.font->CalcTextSizeA(big, FLT_MAX, 0, map.c_str());
+	ImVec2 ts = backend.font_bold->CalcTextSizeA(big, FLT_MAX, 0, map.c_str());
 	float margin = S(40);
 	dl->AddRectFilledMultiColor(ImVec2(0, io.DisplaySize.y * 0.70f), io.DisplaySize,
 		IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 150), IM_COL32(0, 0, 0, 150));
-	dl->AddText(backend.font, big, ImVec2(margin, io.DisplaySize.y - margin - ts.y - S(24)), IM_COL32(255, 255, 255, 150), map.c_str());
+	dl->AddText(backend.font_bold, big, ImVec2(margin, io.DisplaySize.y - margin - ts.y - S(24)), IM_COL32(255, 255, 255, 150), map.c_str());
 
 	const char *hint = "Pick Quick Play to jump into a game    ~  console";
 	float small = S(FONT_SMALL);
@@ -2131,8 +1977,7 @@ void HandleBack()
 		|| config_popup != CONFIG_POPUP_NONE) {
 		return;
 	}
-	// the console keeps its text field focused: Escape leaves the page right away
-	if (ImGui::IsAnyItemActive() && current_page != MUI_PAGE_CONSOLE) {
+	if (ImGui::IsAnyItemActive()) {
 		return;
 	}
 
@@ -2148,7 +1993,7 @@ void HandleBack()
 // own keyboard navigation: Up/Down/Enter).
 void HandleKeyboardPages()
 {
-	static const int order[] = { MUI_PAGE_QUICKPLAY, MUI_PAGE_SERVERS, MUI_PAGE_DEMOS, MUI_PAGE_SETTINGS, MUI_PAGE_CONSOLE, MUI_PAGE_QUIT };
+	static const int order[] = { MUI_PAGE_QUICKPLAY, MUI_PAGE_SERVERS, MUI_PAGE_DEMOS, MUI_PAGE_SETTINGS, MUI_PAGE_QUIT };
 	ImGuiIO &io = ImGui::GetIO();
 	int dir = 0;
 
@@ -2210,7 +2055,6 @@ void BuildFrame()
 		case MUI_PAGE_DEMOS:     DrawDemos(); break;
 		case MUI_PAGE_SETTINGS:  DrawSettings(); break;
 		case MUI_PAGE_QUIT:      DrawQuit(); break;
-		case MUI_PAGE_CONSOLE:   DrawConsole(); break;
 		default:                 DrawHome(); break;
 	}
 
@@ -2228,6 +2072,38 @@ void UpdateScale()
 	}
 }
 
+// Press feedback for touch: a short vibration and an accent ripple where the finger landed,
+// so even a quick tap that only shows the pressed colour for a frame or two is felt and seen.
+struct Ripple {
+	ImVec2 pos;
+	double start = -1.0;
+};
+Ripple ripple;
+
+void TouchFeedback()
+{
+	ImGuiIO &io = ImGui::GetIO();
+	if (io.MouseSource != ImGuiMouseSource_TouchScreen) {
+		return;
+	}
+	if (io.MouseClicked[0] && ImGui::GetCurrentContext()->HoveredId != 0) {
+		ripple.pos = io.MousePos;
+		ripple.start = ImGui::GetTime();
+#ifdef __ANDROID__
+		IN_TouchHapticPulse();
+#endif
+	}
+	const float duration = 0.32f;
+	float t = ripple.start < 0 ? 1.0f : (float)(ImGui::GetTime() - ripple.start) / duration;
+	if (t >= 1.0f) {
+		return;
+	}
+	float ease = 1.0f - (1.0f - t) * (1.0f - t);
+	ImDrawList *dl = ImGui::GetForegroundDrawList();
+	dl->AddCircleFilled(ripple.pos, S(10) + S(38) * ease, Col(COLOR_ACCENT, 0.28f * (1.0f - t)));
+	dl->AddCircle(ripple.pos, S(10) + S(38) * ease, Col(COLOR_ACCENT, 0.6f * (1.0f - t)), 0, S(2));
+}
+
 void RenderDrawData()
 {
 	// recorded into the current frame's command buffer, inside the main render pass
@@ -2240,6 +2116,19 @@ void RenderDrawData()
 //=============================================================================
 // interface
 //=============================================================================
+
+// Oxanium (OFL, src/fonts) with ImGui's default font merged in for glyphs it lacks
+static ImFont *AddMenuFont(const unsigned char *data, int size)
+{
+	ImGuiIO &io = ImGui::GetIO();
+	ImFontConfig cfg, fallback;
+
+	cfg.FontDataOwnedByAtlas = false;
+	ImFont *font = io.Fonts->AddFontFromMemoryTTF((void *)data, size, 0.0f, &cfg);
+	fallback.MergeMode = true;
+	io.Fonts->AddFontDefaultVector(&fallback);
+	return font;
+}
 
 void MenuUI_VidInit(const void *vulkan_init)
 {
@@ -2255,11 +2144,13 @@ void MenuUI_VidInit(const void *vulkan_init)
 	io.LogFilename = nullptr;
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-	backend.font = io.Fonts->AddFontDefaultVector();
+	backend.font = AddMenuFont(oxanium_medium_ttf, sizeof(oxanium_medium_ttf));
+	backend.font_bold = AddMenuFont(oxanium_bold_ttf, sizeof(oxanium_bold_ttf));
 
 	if (!MUIVK_BackendInit((const muivk_init_t *)vulkan_init)) {
 		ImGui::DestroyContext();
 		backend.font = nullptr;
+		backend.font_bold = nullptr;
 		return;
 	}
 
@@ -2279,6 +2170,7 @@ void MenuUI_VidShutdown(void)
 	ImGui::DestroyContext();
 	backend.initialised = false;
 	backend.font = nullptr;
+	backend.font_bold = nullptr;
 }
 
 mui_bool MenuUI_ProcessEvent(const void *sdl_event)
@@ -2370,6 +2262,7 @@ void MenuUI_Render(void)
 	UpdateScale();
 	ImGui::NewFrame();
 	BuildFrame();
+	TouchFeedback();
 
 	ImGui::Render();
 	RenderDrawData();
