@@ -3,6 +3,58 @@
 Release versions follow `MAJOR.MINOR.PATCH` and live in the `VERSION` file.
 Only Android and iOS are release targets.
 
+## 0.1.1
+
+Bug-fix and polish release for the Android touch experience. Upgrades in place over 0.1.0
+(same signing key); game data and `config.cfg` are untouched.
+
+### Download
+
+- APK: `nextQuake-0.1.1-android-arm64.apk`
+- Size: 17,813,771 bytes
+- SHA-256: `BFDF39C74487CB8E379A9A49596C7830C0D3ECAF24B8EAFD05F705F3B69235FE`
+- Android application ID: `org.nextquake.android` (versionCode 101)
+
+### Fixed
+
+- **Menu buttons were almost impossible to tap.** On a phone the Dear ImGui menu was laid out
+  for a desktop mouse: buttons such as *Play* / *Spectate* on the Quick Play cards,
+  *Resume* / *Disconnect* / *Observe* in the top bar and *Copy* in the server details were as small
+  as 48x15 pixels, so most taps landed beside them and nothing happened. Device logs confirmed the
+  touch coordinates were correct; the targets were simply too small. Buttons are now finger-sized,
+  every item has an invisible extra touch margin, and the spacing is larger.
+- **No feedback when tapping the menu.** A tap only showed the pressed colour for one or two frames,
+  so it felt like the menu ignored the touch. Every hit now shows a visible pressed state, an accent
+  ripple where the finger landed and a short haptic click.
+- **`in_touch_haptic` never vibrated.** It relied on SDL's haptic subsystem, which was never
+  initialised and has no vibration permission. Haptics now use Android's standard key-click feedback
+  (no permission needed, follows the system haptics setting).
+- **Touches stuck after leaving the app.** Fingers held while the app went to the background are now
+  released, so FIRE or movement no longer stays pressed on return.
+- **Touch control layout was uneven.** The top-row buttons had different sizes and heights, and the
+  buttons around FIRE were scattered. FIRE now sits in the corner with JUMP and weapon previous/next on
+  an arc around it; the top row shares one size, height and spacing.
+- **Movement stick dead zone.** The stick output now starts at zero right past the dead zone instead
+  of jumping to 15%, giving finer control at low speed.
+
+### Changed
+
+- **Touch control artwork.** Bold game-icons.net icons (CC BY 3.0, Lorc and Delapouite) on the dark
+  Kenney "Mobile Controls" bases (CC0). The mixed Quake artwork (ez_button backgrounds, Q rune,
+  crosshair, chat balloon) is no longer used.
+- **Console.** CONSOLE in the menu opens the classic engine console. The Dear ImGui console page has
+  been removed.
+- **Menu font.** The menu uses Oxanium (SIL OFL 1.1), with the bold weight for titles, the logo and
+  the home map caption.
+- **Client identity.** `f_version`, `version`, the startup banner and the `*client` userinfo key now
+  identify the client only as nextQuake, e.g. `nextQuake 0.1.1 Android 14:Vulkan`.
+
+### Added
+
+- `in_touch_accel` (default 0): look acceleration, fast drags turn up to `1 + in_touch_accel` times as far.
+- `in_touch_haptic` (default 0): short vibration on on-screen control presses.
+- The screen stays awake while playing.
+
 ## 0.1.0
 
 First public nextQuake release, based on ezQuake 3.7.0-dev by the QW-Group
