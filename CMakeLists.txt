@@ -201,8 +201,10 @@ check_dependency(PCRE2    "libpcre2-8" "PCRE2"              "pcre2::pcre2-8-stat
 check_dependency(PNG      "libpng"     "PNG"                "PNG::PNG"                     REQUIRED)
 check_dependency(SDL3     "sdl3"       "SDL3"               "SDL3::SDL3-static"            REQUIRED)
 check_dependency(SndFile  "sndfile"    "SndFile"            "SndFile::sndfile"             REQUIRED)
-check_dependency(Speex    "speex"      "Speex"              "SPEEX::SPEEX"                 OPTIONAL)
-check_dependency(SpeexDSP "speexdsp"   "SpeexDSP"           "SPEEX::SPEEXDSP"              OPTIONAL)
+if(NOT EZQUAKE_IOS)   # voice chat; speex does not cross-build for iOS
+    check_dependency(Speex    "speex"      "Speex"              "SPEEX::SPEEX"                 OPTIONAL)
+    check_dependency(SpeexDSP "speexdsp"   "SpeexDSP"           "SPEEX::SPEEXDSP"              OPTIONAL)
+endif()
 check_dependency(cURL     "libcurl"    "CURL"               "CURL::libcurl"                REQUIRED CONFIG)
 check_dependency(zlib     "zlib"       "ZLIB"               "ZLIB::ZLIB"                   REQUIRED)
 
