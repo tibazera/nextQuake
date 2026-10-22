@@ -207,6 +207,29 @@
             }
         },
         {
+            "name": "ios-simulator-arm64",
+            "displayName": "Xcode iOS Simulator (arm64)",
+            "description": "iOS simulator build (Vulkan through MoltenVK); pass -DMOLTENVK_XCFRAMEWORK=<path>",
+            "generator": "Xcode",
+            "inherits": "template-vcpkg",
+            "cacheVariables": {
+                "CMAKE_SYSTEM_NAME": "iOS",
+                "CMAKE_OSX_SYSROOT": "iphonesimulator",
+                "CMAKE_OSX_ARCHITECTURES": "arm64",
+                "CMAKE_OSX_DEPLOYMENT_TARGET": "15.0",
+                "VCPKG_TARGET_TRIPLET": "arm64-ios-simulator",
+                "RENDERER_CLASSIC_OPENGL": "OFF",
+                "RENDERER_MODERN_OPENGL": "OFF",
+                "RENDERER_VULKAN": "ON",
+                "ENABLE_LTO": "OFF"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+        {
             "name": "android-arm64",
             "displayName": "Android arm64-v8a",
             "description": "Configure Android native library for arm64-v8a using the Android NDK and vcpkg",

@@ -1,0 +1,99 @@
+name: iOS
+
+on:
+  push:
+    branches: [ios]
+  workflow_dispatch:
+
+env:
+  MOLTENVK_VERSION: v1.3.0
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+
+jobs:
+  simulator:
+    name: Build and smoke test (iOS simulator)
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: Fetch upstream tags for version metadata
+      run: |
+        git remote add upstream https://github.com/QW-Group/ezquake-source.git
+        git fetch --tags --no-recurse-submodules upstream
+
+    - name: Install host tools
+      run: brew install -q glslang
+
+    - name: Library build type release
+      # avoids building -dbg and -rel copies of every static library
+      run: |
+        for x in vcpkg/triplets/community/arm64-ios-simulator.cmake; do
+          echo >> $x
+          echo 'set(VCPKG_BUILD_TYPE release)' >> $x
+        done
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v4
+      with:
+        path: .vcpkg-cache
+        key: vcpkg-ios-sim-${{ hashFiles('vcpkg.json', '.git/modules/vcpkg/HEAD') }}
+        restore-keys: vcpkg-ios-sim-
+
+    - name: Download MoltenVK
+      run: |
+        mkdir -p .moltenvk
+        curl -sSfL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-ios.tar" | tar -x -C .moltenvk
+        find .moltenvk -maxdepth 4 -name '*.xcframework'
+        echo "MOLTENVK_XCFRAMEWORK=$(find "$PWD/.moltenvk" -path '*static*' -name 'MoltenVK.xcframework' | head -1)" >> "$GITHUB_ENV"
+
+    - name: Bootstrap vcpkg
+      run: ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+    - name: Configure
+      run: cmake --preset ios-simulator-arm64 -DMOLTENVK_XCFRAMEWORK="$MOLTENVK_XCFRAMEWORK"
+
+    - name: Build
+      run: |
+        set -o pipefail
+        cmake --build build-ios-simulator-arm64 --config Debug -- -quiet CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log
+
+    - name: Smoke test in the simulator
+      id: smoke
+      run: |
+        APP=$(find build-ios-simulator-arm64 -name 'nextQuake.app' -type d | head -1)
+        DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k,v in d.items() if "iOS" in k for x in v if x["name"].startswith("iPhone")))')
+        xcrun simctl boot "$DEVICE"
+        xcrun simctl bootstatus "$DEVICE" -b
+        xcrun simctl install "$DEVICE" "$APP"
+        # run for a while with the console attached, then grab a screenshot
+        ( xcrun simctl launch --console-pty --terminate-running-process "$DEVICE" org.nextquake.ios > app.log 2>&1 & )
+        sleep 45
+        xcrun simctl io "$DEVICE" screenshot screenshot.png || true
+        xcrun simctl spawn "$DEVICE" log show --last 2m --predicate 'process == "nextQuake"' > system.log 2>&1 || true
+        if xcrun simctl spawn "$DEVICE" launchctl list | grep -q org.nextquake.ios; then echo "running=yes" >> "$GITHUB_OUTPUT"; else echo "running=no" >> "$GITHUB_OUTPUT"; fi
+        xcrun simctl shutdown "$DEVICE"
+
+    - name: Upload results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-simulator
+        path: |
+          build.log
+          app.log
+          system.log
+          screenshot.png
+          build-ios-simulator-arm64/**/nextQuake.app
+        if-no-files-found: ignore
+
+    - name: Fail if the app did not stay up
+      if: steps.smoke.outputs.running == 'no'
+      run: |
+        tail -n 80 app.log || true
+        exit 1

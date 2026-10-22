@@ -3,7 +3,7 @@
   "name": "ezquake",
   "version": "1.0.0",
   "dependencies": [
-    { "name": "pkgconf", "default-features": false, "platform": "osx", "host": true },
+    { "name": "pkgconf", "default-features": false, "platform": "osx | ios", "host": true },
     { "name": "zlib", "default-features": false },
     { "name": "pcre2", "default-features": false },
     { "name": "minizip", "default-features": false },
@@ -11,7 +11,7 @@
     { "name": "jansson", "default-features": false },
     { "name": "curl", "default-features": false, "features": ["ssl"], "platform": "windows" },
     { "name": "curl", "default-features": false, "features": ["mbedtls"], "platform": "linux, osx" },
-    { "name": "curl", "default-features": false, "features": ["mbedtls"], "platform": "android" },
+    { "name": "curl", "default-features": false, "features": ["mbedtls"], "platform": "android | ios" },
     { "name": "libpng", "default-features": false },
     { "name": "libjpeg-turbo", "default-features": false },
     { "name": "freetype", "default-features": false, "features": ["zlib"] },
@@ -22,6 +22,7 @@
     { "name": "oboe", "default-features": false, "platform": "android" },
     { "name": "sdl3", "default-features": false, "features": ["vulkan"], "platform": "windows, osx" },
     { "name": "sdl3", "default-features": false, "features": ["wayland", "x11", "alsa"], "platform": "linux" },
-    { "name": "sdl3", "default-features": false, "features": ["vulkan"], "platform": "android" }
+    { "name": "sdl3", "default-features": false, "features": ["vulkan"], "platform": "android | ios" },
+    { "name": "vulkan-headers", "platform": "ios" }
   ]
 }

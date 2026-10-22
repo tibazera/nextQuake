@@ -2,16 +2,30 @@ cmake_minimum_required(VERSION 3.22)
 
 project(ezquake C)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")
     enable_language(OBJC)
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Android")
-    set(EZQUAKE_ANDROID TRUE)
+set(EZQUAKE_IOS FALSE)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    # touch build like Android: Vulkan (over MoltenVK) only, SDL sound
+    set(EZQUAKE_IOS TRUE)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Android" OR EZQUAKE_IOS)
+    if(EZQUAKE_IOS)
+        set(EZQUAKE_ANDROID FALSE)
+    else()
+        set(EZQUAKE_ANDROID TRUE)
+    endif()
     set(EZQUAKE_DEFAULT_RENDERER_MODERN_OPENGL OFF)
     set(EZQUAKE_DEFAULT_RENDERER_CLASSIC_OPENGL OFF)
     set(EZQUAKE_DEFAULT_RENDERER_VULKAN ON)
-    set(EZQUAKE_DEFAULT_SOUND_BACKEND "OBOE")
+    if(EZQUAKE_IOS)
+        set(EZQUAKE_DEFAULT_SOUND_BACKEND "SDL")
+    else()
+        set(EZQUAKE_DEFAULT_SOUND_BACKEND "OBOE")
+    endif()
 else()
     set(EZQUAKE_ANDROID FALSE)
     set(EZQUAKE_DEFAULT_RENDERER_MODERN_OPENGL ON)
@@ -166,7 +180,13 @@ if(RENDERER_OPENGL)
     find_package(OpenGL REQUIRED)
 endif()
 
-if(RENDERER_VULKAN AND NOT EZQUAKE_ANDROID)
+if(RENDERER_VULKAN AND EZQUAKE_IOS)
+    # no Vulkan loader on iOS: link MoltenVK (Vulkan on Metal) directly, headers from vcpkg
+    find_package(VulkanHeaders CONFIG REQUIRED)
+    if(NOT MOLTENVK_XCFRAMEWORK)
+        message(FATAL_ERROR "Set MOLTENVK_XCFRAMEWORK to MoltenVK.xcframework (static) for iOS builds.")
+    endif()
+elseif(RENDERER_VULKAN AND NOT EZQUAKE_ANDROID)
     find_package(Vulkan REQUIRED)
 endif()
 find_package(Threads REQUIRED)
@@ -204,6 +224,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     find_library(FRAMEWORK_FOUNDATION Foundation REQUIRED)
     find_library(FRAMEWORK_CORESERVICES CoreServices REQUIRED)
     find_library(FRAMEWORK_GAMECONTROLLER GameController REQUIRED)
+endif()
+
+if(EZQUAKE_IOS)
+    foreach(framework UIKit Foundation CoreGraphics QuartzCore Metal IOSurface GameController CoreMotion CoreHaptics
+            AVFoundation AudioToolbox CoreAudio CoreBluetooth)
+        find_library(FRAMEWORK_IOS_${framework} ${framework} REQUIRED)
+        list(APPEND EZQUAKE_IOS_FRAMEWORKS ${FRAMEWORK_IOS_${framework}})
+    endforeach()
 endif()
 
 if(EZQUAKE_ANDROID)
@@ -988,7 +1016,7 @@ configure_file("${PROJECT_SOURCE_DIR}/dist/windows/ezQuake.rc.in" ${windows_icon
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # Mark the executable as a non-console application
     set(TARGET_TYPE WIN32)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR EZQUAKE_IOS)
     # Mark the executable for bundling as .app
     set(TARGET_TYPE MACOSX_BUNDLE)
 endif()
@@ -1124,6 +1152,8 @@ if(RENDERER_VULKAN)
                 ${ANDROID_LOG_LIBRARY}
                 ${ANDROID_VULKAN_LIBRARY}
         )
+    elseif(EZQUAKE_IOS)
+        target_link_libraries(ezquake PRIVATE Vulkan::Headers "${MOLTENVK_XCFRAMEWORK}" c++)
     else()
         target_link_libraries(ezquake PRIVATE Vulkan::Vulkan)
     endif()
@@ -1143,7 +1173,9 @@ if(EZQUAKE_SOUND_BACKEND_OBOE)
     )
 endif()
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+if(EZQUAKE_IOS)
+    set(EXECUTABLE_NAME "nextQuake")
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     string(TOLOWER "ezQuake" EXECUTABLE_NAME)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     string(TOLOWER "ezquake" EXECUTABLE_NAME)
@@ -1183,4 +1215,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
                 XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "dist/macOS/ezquake.entitlements.plist"
         )
     endif()
+endif()
+
+if(EZQUAKE_IOS)
+    target_link_libraries(ezquake PRIVATE ${EZQUAKE_IOS_FRAMEWORKS})
+    get_target_property(version git_version GIT_DESCRIBE)
+    set_target_properties(ezquake PROPERTIES
+            XCODE_ATTRIBUTE_PRODUCT_NAME                                    "nextQuake"
+            XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER                       "org.nextquake.ios"
+            XCODE_ATTRIBUTE_MARKETING_VERSION                               "${NEXTQUAKE_VERSION_STRING}"
+            XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION                         "${NEXTQUAKE_VERSION_STRING}"
+            XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET                      "15.0"
+            XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY                          "1,2"
+            XCODE_ATTRIBUTE_GCC_OPTIMIZATION_LEVEL                          $<IF:$<CONFIG:Debug>,0,3>
+            XCODE_ATTRIBUTE_GENERATE_INFOPLIST_FILE                         YES
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_CFBundleDisplayName               "nextQuake"
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_UIRequiresFullScreen              YES
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_UIStatusBarHidden                 YES
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_UISupportedInterfaceOrientations  "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_UIFileSharingEnabled              YES
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace YES
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation         YES
+            XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright          "GNU General Public License, version 2"
+            XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED                            NO
+            MACOSX_BUNDLE_GUI_IDENTIFIER                                    "org.nextquake.ios"
+            MACOSX_BUNDLE_BUNDLE_NAME                                       "nextQuake"
+            MACOSX_BUNDLE_BUNDLE_VERSION                                    "${NEXTQUAKE_VERSION_STRING}"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING                              "${NEXTQUAKE_VERSION_STRING}"
+    )
 endif()
