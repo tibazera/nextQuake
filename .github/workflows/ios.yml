@@ -137,8 +137,8 @@ jobs:
 
     - name: Library build type release
       run: |
-        echo >> vcpkg/triplets/arm64-ios.cmake
-        echo 'set(VCPKG_BUILD_TYPE release)' >> vcpkg/triplets/arm64-ios.cmake
+        echo >> vcpkg/triplets/community/arm64-ios.cmake
+        echo 'set(VCPKG_BUILD_TYPE release)' >> vcpkg/triplets/community/arm64-ios.cmake
 
     - name: Restore vcpkg binary cache
       uses: actions/cache@v4
