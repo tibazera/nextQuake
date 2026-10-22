@@ -1234,6 +1234,10 @@ if(EZQUAKE_IOS)
         string(APPEND gamedata_txt "${entry}")
     endforeach()
     file(WRITE "${CMAKE_BINARY_DIR}/gamedata.txt" "${gamedata_txt}")
+    # CA certificates for curl/mbedtls, which cannot use the iOS trust store
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/cacert.pem")
+        file(DOWNLOAD https://curl.se/ca/cacert.pem "${CMAKE_BINARY_DIR}/cacert.pem" TLS_VERIFY ON STATUS cacert_status)
+    endif()
     set_source_files_properties("${PROJECT_SOURCE_DIR}/ios/Assets.xcassets" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     get_target_property(version git_version GIT_DESCRIBE)
     set_target_properties(ezquake PROPERTIES
@@ -1263,5 +1267,6 @@ if(EZQUAKE_IOS)
     # on-screen control art, shared with the Android app; in_touch.c copies it to Documents
     add_custom_command(TARGET ezquake POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/app/src/main/assets/touch" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/touch"
-            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/gamedata.txt" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/gamedata.txt")
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/gamedata.txt" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/gamedata.txt"
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/cacert.pem" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/cacert.pem")
 endif()

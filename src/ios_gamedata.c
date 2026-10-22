@@ -24,7 +24,7 @@ static int entry_count;
 static char basedir[1024];
 static long long total_size;
 static SDL_AtomicInt done_files, done_bytes_kb, finished, failed;
-static char failed_name[256];
+static char failed_name[256], failed_reason[256];
 static long long file_bytes;
 
 static int FileExists(const char *path)
@@ -81,7 +81,10 @@ static size_t WriteChunk(void *data, size_t size, size_t nmemb, void *stream)
 static int DownloadThread(void *unused)
 {
 	CURL *curl = curl_easy_init();
+	char cainfo[1024];
 	int i;
+
+	SDL_snprintf(cainfo, sizeof(cainfo), "%scacert.pem", SDL_GetBasePath());
 
 	for (i = 0; curl && i < entry_count; i++) {
 		char url[512], dst[1024], part[1100];
@@ -100,6 +103,7 @@ static int DownloadThread(void *unused)
 		SDL_snprintf(url, sizeof(url), GAMEDATA_URL "%s", entries[i].remote);
 		out = fopen(part, "wb");
 		if (!out) {
+			SDL_snprintf(failed_reason, sizeof(failed_reason), "cannot write %s", part);
 			break;
 		}
 		file_bytes = 0;
@@ -110,10 +114,12 @@ static int DownloadThread(void *unused)
 		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 15L);
 		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
 		curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L);
+		curl_easy_setopt(curl, CURLOPT_CAINFO, cainfo);   // mbedtls has no access to the iOS trust store
 		res = curl_easy_perform(curl);
 		curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
 		fclose(out);
 		if (res != CURLE_OK || status != 200 || rename(part, dst) != 0) {
+			SDL_snprintf(failed_reason, sizeof(failed_reason), "%s (HTTP %ld)", curl_easy_strerror(res), status);
 			remove(part);
 			break;
 		}
@@ -121,6 +127,7 @@ static int DownloadThread(void *unused)
 	}
 	if (SDL_GetAtomicInt(&done_files) < entry_count) {
 		SDL_strlcpy(failed_name, entry_count ? entries[SDL_GetAtomicInt(&done_files)].local : "gamedata.txt", sizeof(failed_name));
+		SDL_Log("gamedata: %s: %s", failed_name, failed_reason);
 		SDL_SetAtomicInt(&failed, 1);
 	}
 	if (curl) {
@@ -193,7 +200,8 @@ void IOS_EnsureGameData(void)
 			if (is_failed) {
 				SDL_snprintf(line, sizeof(line), "Download failed: %s", failed_name);
 				DrawText(renderer, w * 0.1f, h * 0.50f, h / 360.0f, line);
-				DrawText(renderer, w * 0.1f, h * 0.60f, h / 360.0f, "Check the connection and tap to retry.");
+				DrawText(renderer, w * 0.1f, h * 0.58f, h / 480.0f, failed_reason);
+				DrawText(renderer, w * 0.1f, h * 0.68f, h / 360.0f, "Check the connection and tap to retry.");
 			}
 			else {
 				SDL_snprintf(line, sizeof(line), "Downloading game data: %d / %d files", files, entry_count);

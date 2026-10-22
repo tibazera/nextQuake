@@ -104,6 +104,12 @@ jobs:
           build-ios-simulator-arm64/**/nextQuake.app
         if-no-files-found: ignore
 
+    - name: Fail if the first-run download did not finish
+      if: steps.smoke.outputs.downloaded < 50
+      run: |
+        grep -i gamedata app.log system.log || true
+        exit 1
+
     - name: Fail if the app did not stay up
       if: steps.smoke.outputs.running == 'no'
       run: |
