@@ -121,7 +121,9 @@ void IN_TouchInit(void)
 	Cvar_ResetCurrentGroup();
 #ifndef __ANDROID__
 	// iOS ships the control art inside the app bundle; the engine loads it as loose files
-	for (int i = 0; i < P_COUNT; i++) {
+	int i;
+
+	for (i = 0; i < P_COUNT; i++) {
 		char src[MAX_OSPATH], dst[MAX_OSPATH];
 		const char *name = pic_names[i] + strlen("gfx/touch/");
 
@@ -206,6 +208,17 @@ static void Layout(void)
 {
 	float W = vid.conwidth, H = vid.conheight, u = UnitSize();
 	float cy = H - 2.3f * u;
+	float left = 0;
+
+#ifndef __ANDROID__
+	float right;
+
+	// keep the controls clear of the notch / Dynamic Island
+	VID_SafeAreaInsets(&left, &right);
+	left *= W;
+	right *= W;
+	W -= right;
+#endif
 
 #define PLACE(b, x, y, rad) do { buttons[b].cx = (x); buttons[b].cy = (y); buttons[b].r = (rad); } while (0)
 	// right cluster: FIRE in the corner, the others on an arc around it (left, up-left, up)
@@ -225,10 +238,10 @@ static void Layout(void)
 	PLACE(B_SCORES,  W - 0.8f * u - step * 3, ty, tr);
 	PLACE(B_KBD,     W - 0.8f * u - (GameDest() ? step * 4 : 0), ty, tr);
 
-	PLACE(B_UP,    2.4f * u, cy - 1.5f * u, 0.7f * u);
-	PLACE(B_DOWN,  2.4f * u, cy + 1.5f * u, 0.7f * u);
-	PLACE(B_LEFT,  0.9f * u, cy, 0.7f * u);
-	PLACE(B_RIGHT, 3.9f * u, cy, 0.7f * u);
+	PLACE(B_UP,    left + 2.4f * u, cy - 1.5f * u, 0.7f * u);
+	PLACE(B_DOWN,  left + 2.4f * u, cy + 1.5f * u, 0.7f * u);
+	PLACE(B_LEFT,  left + 0.9f * u, cy, 0.7f * u);
+	PLACE(B_RIGHT, left + 3.9f * u, cy, 0.7f * u);
 #undef PLACE
 }
 
@@ -288,7 +301,9 @@ void IN_TouchHapticPulse(void)
 		(*env)->DeleteLocalRef(env, cls);
 	}
 	(*env)->DeleteLocalRef(env, activity);
-#endif // ponytail: no haptics on iOS yet, UIImpactFeedbackGenerator needs an Objective-C shim
+#else
+	IOS_HapticPulse();
+#endif
 }
 
 static void Haptic(void)

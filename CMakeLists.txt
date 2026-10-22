@@ -1222,6 +1222,8 @@ endif()
 
 if(EZQUAKE_IOS)
     target_link_libraries(ezquake PRIVATE ${EZQUAKE_IOS_FRAMEWORKS})
+    target_sources(ezquake PRIVATE "${SOURCE_DIR}/ios_haptic.m" "${PROJECT_SOURCE_DIR}/ios/Assets.xcassets")
+    set_source_files_properties("${PROJECT_SOURCE_DIR}/ios/Assets.xcassets" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     get_target_property(version git_version GIT_DESCRIBE)
     set_target_properties(ezquake PROPERTIES
             XCODE_ATTRIBUTE_PRODUCT_NAME                                    "nextQuake"
@@ -1241,6 +1243,7 @@ if(EZQUAKE_IOS)
             XCODE_ATTRIBUTE_INFOPLIST_KEY_UILaunchScreen_Generation         YES
             XCODE_ATTRIBUTE_INFOPLIST_KEY_NSHumanReadableCopyright          "GNU General Public License, version 2"
             XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED                            NO
+            XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME              "AppIcon"
             MACOSX_BUNDLE_GUI_IDENTIFIER                                    "org.nextquake.ios"
             MACOSX_BUNDLE_BUNDLE_NAME                                       "nextQuake"
             MACOSX_BUNDLE_BUNDLE_VERSION                                    "${NEXTQUAKE_VERSION_STRING}"

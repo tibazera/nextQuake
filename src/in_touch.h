@@ -31,6 +31,10 @@ void IN_TouchMove(usercmd_t *cmd);
 void IN_TouchDraw(void);
 void IN_TouchReleaseAll(void);
 void IN_TouchHapticPulse(void);
+void VID_SafeAreaInsets(float *left, float *right);   // vid_sdl2.c, fractions of the window width
+#ifndef __ANDROID__
+void IOS_HapticPulse(void);   // ios_haptic.m
+#endif
 
 #define IN_TOUCH_DOWN   0
 #define IN_TOUCH_MOTION 1

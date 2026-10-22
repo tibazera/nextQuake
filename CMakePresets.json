@@ -230,6 +230,16 @@
             }
         },
         {
+            "name": "ios-arm64",
+            "displayName": "Xcode iOS device (arm64)",
+            "description": "Unsigned iPhone/iPad build for sideloading; pass -DMOLTENVK_LIBRARY=<libMoltenVK.a>",
+            "inherits": "ios-simulator-arm64",
+            "cacheVariables": {
+                "CMAKE_OSX_SYSROOT": "iphoneos",
+                "VCPKG_TARGET_TRIPLET": "arm64-ios"
+            }
+        },
+        {
             "name": "android-arm64",
             "displayName": "Android arm64-v8a",
             "description": "Configure Android native library for arm64-v8a using the Android NDK and vcpkg",

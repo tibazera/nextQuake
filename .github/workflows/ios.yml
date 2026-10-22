@@ -114,3 +114,71 @@ jobs:
       run: |
         tail -n 80 app.log || true
         exit 1
+
+  device:
+    name: Unsigned IPA (iPhone/iPad)
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+        fetch-depth: 0
+
+    - name: Fetch upstream tags for version metadata
+      run: |
+        git remote add upstream https://github.com/QW-Group/ezquake-source.git
+        git fetch --tags --no-recurse-submodules upstream
+
+    - name: Install host tools
+      run: brew install -q glslang
+
+    - name: Library build type release
+      run: |
+        echo >> vcpkg/triplets/arm64-ios.cmake
+        echo 'set(VCPKG_BUILD_TYPE release)' >> vcpkg/triplets/arm64-ios.cmake
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache@v4
+      with:
+        path: .vcpkg-cache
+        key: vcpkg-ios-device-${{ hashFiles('vcpkg.json', '.git/modules/vcpkg/HEAD') }}
+        restore-keys: vcpkg-ios-device-
+
+    - name: Download MoltenVK
+      run: |
+        mkdir -p .moltenvk
+        curl -sSfL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-all.tar" | tar -x -C .moltenvk
+        echo "MOLTENVK_LIBRARY=$(find "$PWD/.moltenvk" -path '*static*' -path '*ios-arm64/*' -name 'libMoltenVK.a' | grep -v simulator | head -1)" >> "$GITHUB_ENV"
+
+    - name: Bootstrap vcpkg
+      run: ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+    - name: Configure
+      run: cmake --preset ios-arm64 -DMOLTENVK_LIBRARY="$MOLTENVK_LIBRARY"
+
+    - name: Build
+      run: |
+        set -o pipefail
+        cmake --build build-ios-arm64 --config Release -- -quiet CODE_SIGNING_ALLOWED=NO 2>&1 | tee build.log
+
+    - name: Package unsigned IPA
+      # sign it on install with AltStore / Sideloadly and a free Apple ID
+      run: |
+        APP=$(find build-ios-arm64 -name 'nextQuake.app' -type d | head -1)
+        mkdir Payload
+        cp -R "$APP" Payload/
+        zip -qry nextQuake-unsigned.ipa Payload
+        ls -la nextQuake-unsigned.ipa
+
+    - name: Upload IPA
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-device
+        path: |
+          nextQuake-unsigned.ipa
+          build.log
+        if-no-files-found: ignore

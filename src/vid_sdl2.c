@@ -2538,3 +2538,17 @@ int VID_RenderHeight2D(void)
 	}
 	return glheight;
 }
+
+#ifdef EZ_TOUCH
+void VID_SafeAreaInsets(float *left, float *right)
+{
+	SDL_Rect safe;
+	int w, h;
+
+	*left = *right = 0;
+	if (sdl_window && SDL_GetWindowSafeArea(sdl_window, &safe) && SDL_GetWindowSize(sdl_window, &w, &h) && w > 0) {
+		*left = (float)safe.x / w;
+		*right = (float)(w - safe.x - safe.w) / w;
+	}
+}
+#endif
