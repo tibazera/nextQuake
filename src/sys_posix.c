@@ -464,6 +464,10 @@ double Sys_DoubleTime(void)
 #ifdef __ANDROID__
 __attribute__((visibility("default")))
 #endif
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+// SDL owns the real main() on iOS (UIApplicationMain) and calls ours as SDL_main
+#include <SDL_main.h>
+#endif
 int main(int argc, char **argv)
 {
 	double time, oldtime, newtime;

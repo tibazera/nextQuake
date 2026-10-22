@@ -26,6 +26,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
   - GZIP/ZIP support - fs.h
 */
 
+#ifdef __APPLE__
+#include <SDL.h>
+#endif
 #include "quakedef.h"
 #include "common.h"
 #include "hash.h"
@@ -720,6 +723,13 @@ void FS_InitFilesystemEx( qbool guess_cwd ) {
 			Sys_Error("FS_InitFilesystemEx: Sys_fullpath failed");
 #elif defined(EZ_MACOS)
 		SysLibrarySupportDir(com_basedir, MAX_OSPATH);
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+		{
+			// the app's Documents folder, reachable from the Files app (UIFileSharingEnabled):
+			// id1/, qw/ and ezquake/ go there
+			const char *docs = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS);
+			strlcpy(com_basedir, docs ? docs : "", sizeof(com_basedir));
+		}
 #elif defined(__FreeBSD__)
 		int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
 		size_t com_basedirlen = sizeof(com_basedir);
