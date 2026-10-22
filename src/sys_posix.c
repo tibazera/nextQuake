@@ -477,6 +477,10 @@ int main(int argc, char **argv)
 	Android_EnforceDataArgs(&argc, &argv);
 	Android_PreflightDataFolder();
 #endif
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+	extern void IOS_EnsureGameData(void);
+	IOS_EnsureGameData();
+#endif
 
 #ifdef __linux__
 	extern void InitSig(void);

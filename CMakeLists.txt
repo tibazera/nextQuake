@@ -1222,7 +1222,18 @@ endif()
 
 if(EZQUAKE_IOS)
     target_link_libraries(ezquake PRIVATE ${EZQUAKE_IOS_FRAMEWORKS})
-    target_sources(ezquake PRIVATE "${SOURCE_DIR}/ios_haptic.m" "${PROJECT_SOURCE_DIR}/ios/Assets.xcassets")
+    target_sources(ezquake PRIVATE "${SOURCE_DIR}/ios_haptic.m" "${SOURCE_DIR}/ios_gamedata.c" "${PROJECT_SOURCE_DIR}/ios/Assets.xcassets")
+    # first-run download list (ios_gamedata.c), taken from the Android launcher's essential() manifest
+    file(READ "${PROJECT_SOURCE_DIR}/app/src/main/java/org/ezquake/android/GameDataManifest.java" gamedata_java)
+    string(FIND "${gamedata_java}" "hdTextures()" gamedata_end)
+    string(SUBSTRING "${gamedata_java}" 0 ${gamedata_end} gamedata_java)
+    string(REGEX MATCHALL "add\\(list, \"[^\"]+\", \"[^\"]+\", [0-9]+L\\)" gamedata_entries "${gamedata_java}")
+    set(gamedata_txt "")
+    foreach(entry ${gamedata_entries})
+        string(REGEX REPLACE "add\\(list, \"([^\"]+)\", \"([^\"]+)\", ([0-9]+)L\\)" "\\1 \\2 \\3\n" entry "${entry}")
+        string(APPEND gamedata_txt "${entry}")
+    endforeach()
+    file(WRITE "${CMAKE_BINARY_DIR}/gamedata.txt" "${gamedata_txt}")
     set_source_files_properties("${PROJECT_SOURCE_DIR}/ios/Assets.xcassets" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     get_target_property(version git_version GIT_DESCRIBE)
     set_target_properties(ezquake PROPERTIES
@@ -1251,5 +1262,6 @@ if(EZQUAKE_IOS)
     )
     # on-screen control art, shared with the Android app; in_touch.c copies it to Documents
     add_custom_command(TARGET ezquake POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/app/src/main/assets/touch" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/touch")
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/app/src/main/assets/touch" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/touch"
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/gamedata.txt" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/gamedata.txt")
 endif()

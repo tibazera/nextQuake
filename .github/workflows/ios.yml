@@ -28,16 +28,7 @@ jobs:
         git fetch --tags --no-recurse-submodules upstream
 
     - name: Install host tools
-      run: brew install -q glslang lhasa
-
-    - name: Quake shareware data for the smoke test
-      # id1/pak0.pak from the freely redistributable shareware release 1.06
-      run: |
-        curl -sSfL -o quake106.zip https://ftp.gwdg.de/pub/misc/ftp.idsoftware.com/idstuff/quake/quake106.zip
-        mkdir -p shareware && cd shareware
-        unzip -q ../quake106.zip resource.1
-        lha -xq resource.1
-        find . -iname 'pak0.pak'
+      run: brew install -q glslang
 
     - name: Library build type release
       # avoids building -dbg and -rel copies of every static library
@@ -81,11 +72,14 @@ jobs:
         xcrun simctl bootstatus "$DEVICE" -b
         xcrun simctl install "$DEVICE" "$APP"
         DOCS="$(xcrun simctl get_app_container "$DEVICE" org.nextquake.ios data)/Documents"
-        mkdir -p "$DOCS/id1"
-        cp "$(find shareware -iname 'pak0.pak' | head -1)" "$DOCS/id1/pak0.pak"
-        # run for a while with the console attached, then grab a screenshot
+        # no data copied: the app must download it on first run (ios_gamedata.c)
         ( xcrun simctl launch --console-pty --terminate-running-process "$DEVICE" org.nextquake.ios > app.log 2>&1 & )
-        sleep 45
+        sleep 20
+        xcrun simctl io "$DEVICE" screenshot download.png || true
+        for i in $(seq 1 30); do [ -s "$DOCS/id1/pak0.pak" ] && [ -s "$DOCS/qw/ktx.pk3" ] && break; sleep 10; done
+        ls -la "$DOCS" "$DOCS/id1" || true
+        echo "downloaded=$(find "$DOCS" -type f | wc -l)" >> "$GITHUB_OUTPUT"
+        sleep 40
         xcrun simctl io "$DEVICE" screenshot screenshot.png || true
         xcrun simctl spawn "$DEVICE" log show --last 2m --predicate 'process == "nextQuake"' > system.log 2>&1 || true
         if xcrun simctl spawn "$DEVICE" launchctl list | grep -q org.nextquake.ios; then echo "running=yes" >> "$GITHUB_OUTPUT"; else echo "running=no" >> "$GITHUB_OUTPUT"; fi
@@ -105,6 +99,7 @@ jobs:
           app.log
           system.log
           screenshot.png
+          download.png
           crashes/
           build-ios-simulator-arm64/**/nextQuake.app
         if-no-files-found: ignore
