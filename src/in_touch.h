@@ -23,6 +23,7 @@ void IN_TouchFinger(int phase, long long finger_id, float x, float y, float dx, 
 void IN_TouchMove(usercmd_t *cmd);
 void IN_TouchDraw(void);
 void IN_TouchReleaseAll(void);
+void IN_TouchHapticPulse(void);
 
 #define IN_TOUCH_DOWN   0
 #define IN_TOUCH_MOTION 1
@@ -42,6 +43,7 @@ void IN_TouchReleaseAll(void);
 #define IN_TouchMove(cmd)               ((void)0)
 #define IN_TouchDraw()                  ((void)0)
 #define IN_TouchReleaseAll()            ((void)0)
+#define IN_TouchHapticPulse()           ((void)0)
 
 #endif
 

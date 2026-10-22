@@ -10,6 +10,7 @@ menu cursor and clicks.
 
 #ifdef __ANDROID__
 
+#include <jni.h>
 #include <SDL.h>
 #include "quakedef.h"
 #include "input.h"
@@ -30,13 +31,15 @@ cvar_t in_touch            = { "in_touch",            "2" };    // 0 off, 1 on, 
 cvar_t in_touch_scale      = { "in_touch_scale",      "1" };
 cvar_t in_touch_alpha      = { "in_touch_alpha",      "0.35" };
 cvar_t in_touch_look_sens  = { "in_touch_look_sens",  "1" };    // negative inverts
+cvar_t in_touch_accel      = { "in_touch_accel",      "0" };    // fast drags turn up to (1 + accel) times as far; 0 off
+cvar_t in_touch_haptic     = { "in_touch_haptic",     "0" };    // short vibration on button press
 cvar_t in_touch_console_size = { "in_touch_console_size", "0.4" };   // console height (fraction of the screen) while the soft keyboard is up
 
 enum { B_FIRE, B_JUMP, B_NEXT, B_PREV, B_SCORES, B_CHAT, B_CONSOLE, B_MENU,
        B_UP, B_DOWN, B_LEFT, B_RIGHT, B_ENTER, B_BACK, B_KBD, B_COUNT };
 #define B_FIRST_NAV B_UP
 
-// Prefer existing Quake artwork; Kenney Mobile Controls (CC0) fills the gaps.
+// Kenney "Mobile Controls" (CC0) bases, game-icons.net (CC BY 3.0) icons; see assets/touch.
 enum {
 	P_BUTTON, P_HELD, P_STICK_BASE, P_STICK_NUB,
 	P_DPAD_N, P_DPAD_S, P_DPAD_E, P_DPAD_W,
@@ -66,23 +69,7 @@ static touch_button_t buttons[B_COUNT] = {
 
 static mpic_t *Pic(int id)
 {
-	mpic_t *pic = NULL;
-
 	// looked up by name each time: cached pics are dropped on vid_restart
-	switch (id) {
-	case P_BUTTON: pic = Draw_CachePicSafe("gfx/ui/ez_button_normal", false, true); break;
-	case P_HELD: pic = Draw_CachePicSafe("gfx/ui/ez_button_pressed", false, true); break;
-	case P_ICON_MENU: pic = Draw_CachePicSafe("textures/tracker/q", false, true); break;
-	case P_ICON_FIRE:
-		if (Cvar_String("crosshairimage")[0]) {
-			pic = Draw_CachePicSafe(va("crosshairs/%s", Cvar_String("crosshairimage")), false, true);
-		}
-		break;
-	default: break;
-	}
-	if (pic) {
-		return pic;
-	}
 	return Draw_CachePicSafe(pic_names[id], false, true);
 }
 
@@ -123,7 +110,10 @@ void IN_TouchInit(void)
 	Cvar_Register(&in_touch_scale);
 	Cvar_Register(&in_touch_alpha);
 	Cvar_Register(&in_touch_look_sens);
+	Cvar_Register(&in_touch_accel);
+	Cvar_Register(&in_touch_haptic);
 	Cvar_Register(&in_touch_console_size);
+	SDL_DisableScreenSaver();   // keep the screen awake while playing
 	Cvar_ResetCurrentGroup();
 }
 
@@ -200,22 +190,27 @@ static void Layout(void)
 	float cy = H - 2.3f * u;
 
 #define PLACE(b, x, y, rad) do { buttons[b].cx = (x); buttons[b].cy = (y); buttons[b].r = (rad); } while (0)
-	PLACE(B_FIRE,    W - 1.5f * u, H - 2.0f * u, 1.0f * u);
-	PLACE(B_JUMP,    W - 3.7f * u, H - 1.1f * u, 0.8f * u);
-	PLACE(B_NEXT,    W - 1.2f * u, H - 4.3f * u, 0.65f * u);
-	PLACE(B_PREV,    W - 3.2f * u, H - 3.3f * u, 0.65f * u);
-	PLACE(B_MENU,    W - 0.8f * u, 0.8f * u, 0.55f * u);
-	PLACE(B_CONSOLE, W - (key_dest == key_console ? 2.5f : 2.2f) * u, 0.9f * u, key_dest == key_console ? 0.7f * u : 0.55f * u);
-	PLACE(B_CHAT,    W - 3.6f * u, 0.8f * u, 0.55f * u);
-	PLACE(B_SCORES,  W - 5.0f * u, 0.8f * u, 0.55f * u);
+	// right cluster: FIRE in the corner, the others on an arc around it (left, up-left, up)
+	float fx = W - 1.6f * u, fy = H - 1.6f * u, arc = 2.2f * u, diag = arc * 0.7071f;
+	PLACE(B_FIRE,  fx, fy, 1.0f * u);
+	PLACE(B_JUMP,  fx - arc, fy, 0.8f * u);
+	PLACE(B_PREV,  fx - diag, fy - diag, 0.65f * u);
+	PLACE(B_NEXT,  fx, fy - arc, 0.65f * u);
+	PLACE(B_ENTER, fx, fy, 1.0f * u);
+	PLACE(B_BACK,  fx - arc, fy, 0.8f * u);
+
+	// top row, right aligned: same size, height and spacing
+	float ty = 0.8f * u, tr = 0.55f * u, step = 1.4f * u;
+	PLACE(B_MENU,    W - 0.8f * u, ty, tr);
+	PLACE(B_CONSOLE, W - 0.8f * u - step, ty, tr);
+	PLACE(B_CHAT,    W - 0.8f * u - step * 2, ty, tr);
+	PLACE(B_SCORES,  W - 0.8f * u - step * 3, ty, tr);
+	PLACE(B_KBD,     W - 0.8f * u - (GameDest() ? step * 4 : 0), ty, tr);
 
 	PLACE(B_UP,    2.4f * u, cy - 1.5f * u, 0.7f * u);
 	PLACE(B_DOWN,  2.4f * u, cy + 1.5f * u, 0.7f * u);
 	PLACE(B_LEFT,  0.9f * u, cy, 0.7f * u);
 	PLACE(B_RIGHT, 3.9f * u, cy, 0.7f * u);
-	PLACE(B_ENTER, W - 1.6f * u, H - 2.0f * u, 1.0f * u);
-	PLACE(B_BACK,  W - 3.8f * u, H - 1.2f * u, 0.8f * u);
-	PLACE(B_KBD,   W - (GameDest() ? 6.4f : 0.9f) * u, 0.9f * u, 0.7f * u);
 #undef PLACE
 }
 
@@ -251,8 +246,41 @@ static qbool ButtonRepeats(int b)
 	return b >= B_UP && b <= B_RIGHT;
 }
 
+// short "key click" vibration (SDLActivity.performHapticClick), also the menus' press feedback
+void IN_TouchHapticPulse(void)
+{
+	JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
+	jobject activity = (jobject)SDL_GetAndroidActivity();
+	jclass cls;
+	jmethodID mid;
+
+	if (!env || !activity) {
+		return;
+	}
+	cls = (*env)->GetObjectClass(env, activity);
+	mid = cls ? (*env)->GetStaticMethodID(env, cls, "performHapticClick", "()V") : NULL;
+	if (mid) {
+		(*env)->CallStaticVoidMethod(env, cls, mid);
+	}
+	else {
+		(*env)->ExceptionClear(env);
+	}
+	if (cls) {
+		(*env)->DeleteLocalRef(env, cls);
+	}
+	(*env)->DeleteLocalRef(env, activity);
+}
+
+static void Haptic(void)
+{
+	if (in_touch_haptic.integer > 0) {
+		IN_TouchHapticPulse();
+	}
+}
+
 static void ButtonPress(int b)
 {
+	Haptic();
 	switch (b) {
 	case B_FIRE:
 		if (attack_fingers++ == 0) Cbuf_AddText("+attack\n");
@@ -404,6 +432,13 @@ static void UpdateStick(finger_t *f)
 	}
 	if (len < 0.15f) {
 		dx = dy = 0;
+	}
+	else {
+		// rescale past the dead zone so the throw starts from 0
+		float k = (len - 0.15f) / (0.85f * len);
+
+		dx *= k;
+		dy *= k;
 	}
 	stick_x = dx;
 	stick_y = dy;
@@ -568,6 +603,13 @@ void IN_TouchMove(usercmd_t *cmd)
 	if (look_dx != 0 || look_dy != 0) {
 		float sens = in_touch_look_sens.value * 190.0f;
 
+		if (in_touch_accel.value > 0 && cls.frametime > 0) {
+			// drag speed in screen widths per second; 2.5 or more gets the full boost
+			float speed = sqrtf(look_dx * look_dx + look_dy * look_dy) / cls.frametime;
+
+			sens *= 1.0f + in_touch_accel.value * min(speed / 2.5f, 1.0f);
+		}
+
 		if (!cl.paused || cls.demoplayback || cl.spectator) {
 			cl.viewangles[YAW] -= look_dx * sens;
 			cl.viewangles[PITCH] += look_dy * sens * ((float)vid.conheight / max(1, vid.conwidth));
@@ -590,23 +632,13 @@ static void DrawButton(int b, qbool held, float alpha)
 	if (shape) {
 		mpic_t *icon = btn->icon >= 0 ? Pic(b == B_CONSOLE && key_dest == key_console ? P_ICON_BACK : btn->icon) : NULL;
 		mpic_t *highlight = held ? Pic(P_HELD) : NULL;
-		mpic_t *chat = b == B_CHAT ? Draw_CachePicSafe("textures/chaticons", false, true) : NULL;
 
 		Draw_SAlphaSubPic2(btn->cx - btn->r, btn->cy - btn->r, shape, 0, 0, shape->width, shape->height, d / shape->width, d / shape->height, held ? 1.0f : boost);
 		if (highlight && btn->shape < 0) {
 			Draw_SAlphaSubPic2(btn->cx - btn->r, btn->cy - btn->r, highlight, 0, 0, highlight->width, highlight->height, d / highlight->width, d / highlight->height, 1.0f);
 		}
-		if (icon || chat) {
-			if (chat && chat->width >= 4 && chat->height >= 4) {
-				// The original chat balloon is the top-left quarter of the atlas.
-				int w = chat->width / 4, h = chat->height / 4;
-				float s = d * 0.6f / max(w, h);
-
-				Draw_SAlphaSubPic(btn->cx - w * s * 0.5f, btn->cy - h * s * 0.5f, chat, 0, 0, w, h, s, held ? 1.0f : boost);
-			}
-			else if (icon) {
-				Draw_FitPicAlphaCenter(btn->cx - btn->r * 0.6f, btn->cy - btn->r * 0.6f, d * 0.6f, d * 0.6f, icon, held ? 1.0f : boost);
-			}
+		if (icon) {
+			Draw_FitPicAlphaCenter(btn->cx - btn->r * 0.55f, btn->cy - btn->r * 0.55f, d * 0.55f, d * 0.55f, icon, held ? 1.0f : boost);
 		}
 		return;
 	}

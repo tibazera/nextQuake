@@ -595,7 +595,6 @@ static void IN_Frame(void)
 		return;
 	}
 
-	MUI_Console_Pump();
 	HandleEvents();
 
 	if (!ActiveApp || Minimized || IN_OSMouseCursorRequired()) {
@@ -1103,6 +1102,7 @@ static void HandleEvents(void)
 #ifdef __ANDROID__
 		case SDL_APP_WILLENTERBACKGROUND:
 		case SDL_APP_DIDENTERBACKGROUND:
+			IN_TouchReleaseAll();
 			ActiveApp = false;
 			Minimized = true;
 			break;

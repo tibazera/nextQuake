@@ -1,0 +1,17 @@
+Touch button icons from game-icons.net, licensed under CC BY 3.0
+(https://creativecommons.org/licenses/by/3.0/):
+
+  icon_fire.png          "Bullets" by Lorc
+  icon_cog.png           "Cog" by Lorc
+  icon_arrow_curved.png  "Return arrow" by Lorc
+  icon_jump.png          "Upgrade" by Delapouite
+  icon_button_r.png      "Clockwise rotation" by Delapouite
+  icon_button_l.png      "Anticlockwise rotation" by Delapouite
+  icon_skull.png         "Podium" by Delapouite
+  icon_talk.png          "Chat bubble" by Delapouite
+  icon_menu.png          "Hamburger menu" by Delapouite
+  icon_key.png           "Keyboard" by Delapouite
+  icon_checkmark.png     "Check mark" by Delapouite
+
+Recoloured to white on transparent and resized to 128x128.
+Button bases, stick and d-pad are Kenney "Mobile Controls" (CC0), see KENNEY_LICENSE.txt.

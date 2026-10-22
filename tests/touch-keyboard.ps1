@@ -21,12 +21,14 @@ typedef struct { float forwardmove, sidemove; } usercmd_t;
 #define YAW 1
 #define PITCH 0
 #define max(a,b) ((a) > (b) ? (a) : (b))
+#define min(a,b) ((a) < (b) ? (a) : (b))
 #define bound(a,b,c) ((b) < (a) ? (a) : ((b) > (c) ? (c) : (b)))
-static struct { float value; } cl_movespeedkey = {2}, cl_forwardspeed = {200}, cl_sidespeed = {200}, cl_yawspeed = {140}, cl_pitchspeed = {150}, in_touch_look_sens = {1}, cl_independentPhysics = {0};
+static struct { float value; } cl_movespeedkey = {2}, cl_forwardspeed = {200}, cl_sidespeed = {200}, cl_yawspeed = {140}, cl_pitchspeed = {150}, in_touch_look_sens = {1}, in_touch_accel = {0}, cl_independentPhysics = {0};
 static struct { int state; } in_speed;
 static struct { float viewangles[3], minpitch, maxpitch; bool paused, spectator, intermission; } cl = {{0}, -70, 80, false, false, false};
 enum { ca_active = 4 };
-static struct { double trueframetime; bool demoplayback; int state; } cls = {0, false, ca_active};
+static struct { double trueframetime, frametime; bool demoplayback; int state; } cls = {0, 0, false, ca_active};
+static void Haptic(void) {}
 #define SCR_NEED_CONSOLE_BACKGROUND (cls.state < ca_active && !cl.intermission)
 static double physframetime;
 static struct { int conwidth, conheight; } vid = {1920, 1080};

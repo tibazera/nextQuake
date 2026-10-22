@@ -32,6 +32,7 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.HapticFeedbackConstants;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.PointerIcon;
@@ -1123,6 +1124,19 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         int viewH = s.getHeight();
         int surfaceH = s.getHolder().getSurfaceFrame().height();
         return (viewH > 0 && surfaceH > 0 && viewH != surfaceH) ? y * surfaceH / viewH : y;
+    }
+
+    // Light "key click" for the touch UI: needs no permission and follows the system haptics setting.
+    public static void performHapticClick() {
+        final SDLSurface s = mSurface;
+        if (s != null) {
+            s.post(new Runnable() {
+                @Override
+                public void run() {
+                    s.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+                }
+            });
+        }
     }
 
     public static native void onNativeMouse(int button, int action, float x, float y, boolean relative);
