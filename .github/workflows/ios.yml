@@ -84,12 +84,17 @@ jobs:
         mkdir -p "$DOCS/id1"
         cp "$(find shareware -iname 'pak0.pak' | head -1)" "$DOCS/id1/pak0.pak"
         # run for a while with the console attached, then grab a screenshot
+        export SIMCTL_CHILD_MVK_CONFIG_LOG_LEVEL=3   # MoltenVK: errors, warnings and info
         ( xcrun simctl launch --console-pty --terminate-running-process "$DEVICE" org.nextquake.ios > app.log 2>&1 & )
         sleep 45
         xcrun simctl io "$DEVICE" screenshot screenshot.png || true
         xcrun simctl spawn "$DEVICE" log show --last 2m --predicate 'process == "nextQuake"' > system.log 2>&1 || true
         if xcrun simctl spawn "$DEVICE" launchctl list | grep -q org.nextquake.ios; then echo "running=yes" >> "$GITHUB_OUTPUT"; else echo "running=no" >> "$GITHUB_OUTPUT"; fi
         xcrun simctl shutdown "$DEVICE"
+        # crash reports of the app and of the simulator's Metal host
+        mkdir -p crashes
+        find ~/Library/Logs/DiagnosticReports -newer app.log -o -name '*nextQuake*' -o -name '*SimMetalHost*' 2>/dev/null | grep -iE 'nextquake|metal' | xargs -I{} cp {} crashes/ 2>/dev/null || true
+        ls -la crashes
 
     - name: Upload results
       if: always()
@@ -101,6 +106,7 @@ jobs:
           app.log
           system.log
           screenshot.png
+          crashes/
           build-ios-simulator-arm64/**/nextQuake.app
         if-no-files-found: ignore
 
