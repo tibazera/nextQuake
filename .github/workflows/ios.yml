@@ -28,7 +28,16 @@ jobs:
         git fetch --tags --no-recurse-submodules upstream
 
     - name: Install host tools
-      run: brew install -q glslang
+      run: brew install -q glslang lhasa
+
+    - name: Quake shareware data for the smoke test
+      # id1/pak0.pak from the freely redistributable shareware release 1.06
+      run: |
+        curl -sSfL -o quake106.zip https://ftp.gwdg.de/pub/misc/ftp.idsoftware.com/idstuff/quake/quake106.zip
+        mkdir -p shareware && cd shareware
+        unzip -q ../quake106.zip resource.1
+        lha -xq resource.1
+        find . -iname 'pak0.pak'
 
     - name: Library build type release
       # avoids building -dbg and -rel copies of every static library
@@ -71,6 +80,9 @@ jobs:
         xcrun simctl boot "$DEVICE"
         xcrun simctl bootstatus "$DEVICE" -b
         xcrun simctl install "$DEVICE" "$APP"
+        DOCS="$(xcrun simctl get_app_container "$DEVICE" org.nextquake.ios data)/Documents"
+        mkdir -p "$DOCS/id1"
+        cp "$(find shareware -iname 'pak0.pak' | head -1)" "$DOCS/id1/pak0.pak"
         # run for a while with the console attached, then grab a screenshot
         ( xcrun simctl launch --console-pty --terminate-running-process "$DEVICE" org.nextquake.ios > app.log 2>&1 & )
         sleep 45
