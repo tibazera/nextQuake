@@ -37,12 +37,12 @@
 void Sys_ActiveAppChanged (void);
 #endif
 
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 #include "in_osx.h"
 #endif
 
 #if defined(RENDERER_OPTION_CLASSIC_OPENGL) || defined(RENDERER_OPTION_MODERN_OPENGL)
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 #include <OpenGL/gl.h>
 #include <OpenGL/OpenGL.h>
 #else
@@ -87,7 +87,7 @@ qbool VK_RefreshPresentationMode(void);
 // Affects X11 only - might also be needed on FreeBSD/OSX?
 static qbool block_keyboard_input = false;
 #endif
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 static int deadkey_modifiers_held_down = 0;
 static cvar_t in_ignore_deadkeys = { "in_ignore_deadkeys", "1", CVAR_SILENT };
 
@@ -221,7 +221,7 @@ static void vid_reload_callback(cvar_t* var, char* string, qbool* cancel)
 //
 // OS dependent cvar defaults
 //
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	#define CVAR_DEF1 "0"
 #else
 	#define CVAR_DEF1 "1"
@@ -303,7 +303,7 @@ cvar_t r_verbose                  = {"vid_verbose",                "0",       CV
 cvar_t r_showextensions           = {"vid_showextensions",         "0",       CVAR_SILENT };
 cvar_t gl_multisamples            = {"gl_multisamples",            "0",       CVAR_LATCH_GFX | CVAR_AUTO }; // It's here because it needs to be registered before window creation
 cvar_t vid_gammacorrection        = {"vid_gammacorrection",        "0",       CVAR_LATCH_GFX };
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 cvar_t vid_software_palette       = {"vid_software_palette",       "0",       CVAR_NO_RESET | CVAR_LATCH_GFX };
 #else
 cvar_t vid_software_palette       = {"vid_software_palette",       "1",       CVAR_NO_RESET | CVAR_LATCH_GFX };
@@ -560,7 +560,7 @@ void IN_StartupMouse(void)
 #ifdef __ANDROID__
 	Cvar_Register(&in_android_diagnostics);
 #endif
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	Cvar_Register(&in_ignore_deadkeys);
 
 	if (in_raw.integer > 0) {
@@ -606,7 +606,7 @@ static void IN_Frame(void)
 	}
 
 	if (mouse_active && SDL_GetWindowRelativeMouseMode(sdl_window)) {
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 		OSX_Mouse_GetMouseMovement(&mx, &my);
 #else
 		float dx, dy;
@@ -830,7 +830,7 @@ static const byte scantokey[128] = {
     KP_UPARROW,     KP_PGUP,        KP_INS,         KP_DEL,         K_ISO,          K_MENU,         0,                  0,              // 6
     0,              0,              0,              0,              0,              0,              0,                  0,
     0,              0,              0,              0,              0,              0,              K_MENU,             0,              // 7
-#ifdef __APPLE__
+#ifdef EZ_MACOS
     K_LCTRL,        K_LSHIFT,       K_LALT,         K_CMD,          K_RCTRL,        K_RSHIFT,       K_RALT,             K_CMD,         // E
 #else
     K_LCTRL,        K_LSHIFT,       K_LALT,         K_LWIN,         K_RCTRL,        K_RSHIFT,       K_RALT,             K_RWIN,         // E
@@ -904,7 +904,7 @@ static void keyb_textinputevent(const char* text)
 	if (!*text)
 		return;
 
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	// operating system is sending deadkey-modified input... ignore
 	if (deadkey_modifiers_held_down) {
 		return;
@@ -965,7 +965,7 @@ static void keyb_event(SDL_KeyboardEvent *event)
 {
 	byte result = IN_KeyboardEventToQuakeCode(event);
 
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	if (in_ignore_deadkeys.integer) {
 		// Apologies for the guesswork, no Apple keyboard...
 		int left_alt = (in_ignore_deadkeys.integer == 2 ? SDLK_LALT : SDLK_LGUI);
@@ -1119,7 +1119,7 @@ static void HandleEvents(void)
 #endif
 		case SDL_KEYDOWN:
 		case SDL_KEYUP:
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 			if (developer.integer == 2) {
 				Con_Printf("key%s event, scan=%d, sym=%d, mod=%d\n", event.type == SDL_KEYDOWN ? "down" : "up", event.key.scancode, event.key.key, event.key.mod);
 			}
@@ -1147,7 +1147,7 @@ static void HandleEvents(void)
 			}
 #endif
 			if (event.motion.which != SDL_TOUCH_MOUSEID || !in_ignore_touch_events.integer) {
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 				if (developer.integer == 2) {
 					Con_Printf("motion event, which=%d\n", event.motion.which);
 				}
@@ -1173,7 +1173,7 @@ static void HandleEvents(void)
 				IN_TouchPhysicalInput(false);
 			}
 #endif
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 			if (developer.integer == 2) {
 				Con_Printf("mouse%s event, which=%d, button=%d\n", event.type == SDL_MOUSEBUTTONDOWN ? "down" : "up", event.button.which, event.button.button);
 			}
@@ -1313,11 +1313,11 @@ static int VID_SDL_InitSubSystem(void)
 static void VID_SDL_SetHints(void)
 {
 	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, vid_minimize_on_focus_loss.integer == 0 ? "0" : "1");
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
 #endif
 
-#if defined(__APPLE__) || defined(__ANDROID__)
+#if defined(EZ_MACOS) || defined(__ANDROID__)
 #ifdef SDL_HINT_TOUCH_MOUSE_EVENTS
 	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
 #endif
@@ -1723,7 +1723,7 @@ static SDL_GLContext VID_SDL_GL_SetupContextAttributes(void)
 
 static int VID_SetWindowIcon(SDL_Window *sdl_window)
 {
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	// on OS X the icon is handled by the app bundle
 	// it actually is higher resolution than the one here.
 	return 0;
@@ -2086,7 +2086,7 @@ void R_EndRendering(void)
 				Con_Printf("vsync: Failed to disable vsync...\n");
 			}
             // MacOS vsync fix
-            #ifdef __APPLE__
+            #ifdef EZ_MACOS
             GLint                       sync = 0;
             CGLContextObj               ctx = CGLGetCurrentContext();
             CGLSetParameter(ctx, kCGLCPSwapInterval, &sync);

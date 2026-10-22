@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/time.h>
 #endif
 
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 #include "in_osx.h"
 #endif
 
@@ -583,7 +583,7 @@ void IN_Shutdown(void)
 {
 	IN_DeactivateMouse(); // btw we trying de init this in video shutdown too...
 
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	OSX_Mouse_Shutdown(); // Safe to call, will just return if it's not running
 #endif
 

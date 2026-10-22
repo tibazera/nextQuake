@@ -1080,6 +1080,7 @@ target_compile_definitions(ezquake PRIVATE
         $<$<AND:$<BOOL:${RENDERER_OPENGL}>,$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>>:WITH_RENDERING_TRACE>
 
         $<$<PLATFORM_ID:Darwin>:GL_SILENCE_DEPRECATION>
+        $<$<PLATFORM_ID:Darwin>:EZ_MACOS>   # desktop macOS only; __APPLE__ is also set on iOS
 
         $<$<BOOL:${RENDERER_MODERN_OPENGL}>:RENDERER_OPTION_MODERN_OPENGL>
         $<$<BOOL:${RENDERER_CLASSIC_OPENGL}>:RENDERER_OPTION_CLASSIC_OPENGL>

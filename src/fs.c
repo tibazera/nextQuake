@@ -37,7 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #else
 #include <unistd.h>
 #include <strings.h>
-#if defined(__APPLE__)
+#if defined(EZ_MACOS)
 #include <libproc.h>
 #elif defined(__FreeBSD__)
 #include <sys/sysctl.h>
@@ -705,7 +705,7 @@ void FS_InitFilesystemEx( qbool guess_cwd ) {
 	FS_ShutDown();
 
 	if (guess_cwd) { // so, com_basedir directory will be where ezquake*.exe located
-#if !defined(__APPLE__) && !defined(__ANDROID__)
+#if !defined(EZ_MACOS) && !defined(__ANDROID__)
 		char *e;
 #endif
 
@@ -718,7 +718,7 @@ void FS_InitFilesystemEx( qbool guess_cwd ) {
 #elif defined(__linux__)
 		if (!Sys_fullpath(com_basedir, "/proc/self/exe", sizeof(com_basedir)))
 			Sys_Error("FS_InitFilesystemEx: Sys_fullpath failed");
-#elif defined(__APPLE__)
+#elif defined(EZ_MACOS)
 		SysLibrarySupportDir(com_basedir, MAX_OSPATH);
 #elif defined(__FreeBSD__)
 		int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
@@ -729,7 +729,7 @@ void FS_InitFilesystemEx( qbool guess_cwd ) {
 		com_basedir[0] = 0; // FIXME: others
 #endif
 
-#if !defined(__APPLE__) && !defined(__ANDROID__)
+#if !defined(EZ_MACOS) && !defined(__ANDROID__)
 		// strip ezquake*.exe, we need only path
 		for (e = com_basedir+strlen(com_basedir)-1; e >= com_basedir; e--)
 			if (*e == '/' || *e == '\\')

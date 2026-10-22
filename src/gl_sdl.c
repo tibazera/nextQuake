@@ -41,7 +41,7 @@ static void GL_SDL_SetupAttributes(const opengl_version_t* version)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, version->minorVersion);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, version->core ? SDL_GL_CONTEXT_PROFILE_CORE : SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 		// https://www.khronos.org/opengl/wiki/OpenGL_Context
 		// Recommendation: You should use the forward compatibility bit only if you need compatibility with MacOS.
 		// That API requires the forward compatibility bit to create any core profile context.

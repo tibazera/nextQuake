@@ -246,7 +246,7 @@ void Sys_Quit(void)
 
 void Sys_Init(void)
 {
-#ifdef __APPLE__
+#ifdef EZ_MACOS
 	extern void init_macos_extras(void);
 	init_macos_extras();
 #endif
