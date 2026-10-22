@@ -30,6 +30,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "vk_local.h"
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 // VK_EXT_debug_report extension to get debug messages 
 #define EZ_MAX_ADDITIONAL_EXTENSIONS 1
 
@@ -123,7 +127,7 @@ qbool VK_CreateInstance(SDL_Window* window, VkInstance* instance)
 	createInfo.enabledExtensionCount = extensionCount;
 	createInfo.ppEnabledExtensionNames = extensionStrings;
 
-#if defined(SDL_PLATFORM_IOS) && TARGET_OS_SIMULATOR
+#if defined(TARGET_OS_SIMULATOR) && TARGET_OS_SIMULATOR
 	// The simulator's paravirtual Metal aborts on samplers in argument buffers
 	setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "0", 0);
 #endif
