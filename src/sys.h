@@ -123,6 +123,14 @@ typedef HANDLE sem_t;
 #else
 #include <semaphore.h>
 #endif
+
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#if TARGET_OS_IPHONE
+// iOS apps cannot start other processes: scripts and the xdg-mime handler just fail
+#define system(cmd) ((void)(cmd), -1)
+#endif
+#endif
 int Sys_SemInit(sem_t *sem, int value, int max_value);
 int Sys_SemWait(sem_t *sem);
 int Sys_SemPost(sem_t *sem);

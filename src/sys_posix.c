@@ -51,6 +51,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <pcre2.h>
 
 
+
 // BSD only defines FNDELAY:
 #ifndef O_NDELAY
 #  define O_NDELAY	FNDELAY
