@@ -20,7 +20,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __GL_LOCAL_H__
 #define __GL_LOCAL_H__
 
+#include <SDL_platform.h>
+#ifdef SDL_PLATFORM_IOS
+// SDL_opengl.h is empty on iOS, but the shared renderer code still uses the GL types
+// and enums (Vulkan only builds never call into GL), so take its portable definitions
+#undef SDL_PLATFORM_IOS
 #include <SDL_opengl.h>
+#define SDL_PLATFORM_IOS 1
+#else
+#include <SDL_opengl.h>
+#endif
 #include <SDL_opengl_glext.h>
 
 #include "gl_model.h"
