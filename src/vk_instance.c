@@ -35,7 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 // VK_EXT_debug_report extension to get debug messages 
-#define EZ_MAX_ADDITIONAL_EXTENSIONS 1
+#define EZ_MAX_ADDITIONAL_EXTENSIONS 2
 
 #ifndef EZQUAKE_ANDROID_RELEASE
 static const char* validationLayers[] = { "VK_LAYER_KHRONOS_validation" };
@@ -124,13 +124,17 @@ qbool VK_CreateInstance(SDL_Window* window, VkInstance* instance)
 		debugCallback = true;
 	}
 
-	createInfo.enabledExtensionCount = extensionCount;
-	createInfo.ppEnabledExtensionNames = extensionStrings;
-
 #if defined(TARGET_OS_SIMULATOR) && TARGET_OS_SIMULATOR
 	// The simulator's paravirtual Metal aborts on samplers in argument buffers
-	setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "0", 0);
+	int32_t noArgumentBuffers = 0;
+	VkLayerSettingEXT mvkSetting = { "MoltenVK", "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", VK_LAYER_SETTING_TYPE_INT32_EXT, 1, &noArgumentBuffers };
+	VkLayerSettingsCreateInfoEXT layerSettings = { VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT, NULL, 1, &mvkSetting };
+	createInfo.pNext = &layerSettings;
+	extensionStrings[extensionCount++] = VK_EXT_LAYER_SETTINGS_EXTENSION_NAME;
 #endif
+
+	createInfo.enabledExtensionCount = extensionCount;
+	createInfo.ppEnabledExtensionNames = extensionStrings;
 
 	result = vkCreateInstance(&createInfo, NULL, instance);
 	Q_free(extensionStrings);
