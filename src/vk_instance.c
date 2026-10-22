@@ -123,6 +123,11 @@ qbool VK_CreateInstance(SDL_Window* window, VkInstance* instance)
 	createInfo.enabledExtensionCount = extensionCount;
 	createInfo.ppEnabledExtensionNames = extensionStrings;
 
+#if defined(SDL_PLATFORM_IOS) && TARGET_OS_SIMULATOR
+	// The simulator's paravirtual Metal aborts on samplers in argument buffers
+	setenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "0", 0);
+#endif
+
 	result = vkCreateInstance(&createInfo, NULL, instance);
 	Q_free(extensionStrings);
 	if (result != VK_SUCCESS) {
