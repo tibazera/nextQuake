@@ -53,7 +53,7 @@ CL_Version_f
 */
 void CL_Version_f (void)
 {
-	Com_Printf ("ezQuake %s\n", VersionString());
+	Com_Printf (NEXTQUAKE_NAME " %s\n", NEXTQUAKE_VERSION);
 	Com_Printf ("Exe: "__DATE__" "__TIME__"\n");
 
 #ifdef _DEBUG
@@ -177,7 +177,7 @@ char *VersionStringFull (void)
 {
 	static char str[256];
 
-	snprintf (str, sizeof(str), NEXTQUAKE_NAME " %s (ezQuake %s) (" QW_PLATFORM ")\n", NEXTQUAKE_VERSION, VersionString());
+	snprintf (str, sizeof(str), NEXTQUAKE_NAME " %s (" QW_PLATFORM ")\n", NEXTQUAKE_VERSION);
 
 	return str;
 }

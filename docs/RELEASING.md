@@ -12,11 +12,11 @@ source for:
 
 ## What `f_version` shows
 
-`nextQuake 0.1.0 (ezQuake 3.7.0-dev) Android 14:Vulkan`
+`nextQuake 0.1.1 Android 14:Vulkan`
 
 - `nextQuake` (orange) and the release version (green) come from `VERSION`.
-- The ezQuake base version stays in the text on purpose: servers and mods detect
-  the client through it (`VERSION_NUMBER` in `src/version.h` is unchanged).
+- Since 0.1.1 the client identifies only as nextQuake: `f_version`, `version`, the
+  startup banner and the `*client` userinfo key no longer mention ezQuake.
 - The OS comes from `QW_PlatformDetail()` (`src/version.c`): the Android release
   version is read at run time from `ro.build.version.release`. iOS is stubbed to
   `iOS` until the iOS port exists. `QW_PLATFORM` is `Android` / `iOS` (it used to

@@ -2149,7 +2149,7 @@ static void CL_InitLocal(void)
 	// debugging weapons
 	Cvar_Register(&cl_debug_weapon_view);
 
-	snprintf(st, sizeof(st), "ezQuake %i", REVISION);
+	snprintf(st, sizeof(st), NEXTQUAKE_NAME " %s", NEXTQUAKE_VERSION);
 
 	if (COM_CheckParm (cmdline_param_client_norjscripts) || COM_CheckParm (cmdline_param_client_noscripts))
 		Cvar_SetValue (&allow_scripts, 0);

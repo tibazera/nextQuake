@@ -921,7 +921,7 @@ void Host_Init (int argc, char **argv, int default_memsize)
 	Com_Printf(EZ_VERSION_WEBSITE "\n");
 	Com_Printf("\n");
 //	Com_Printf(Host_PrintBars("ezQuake\x9c" "SourceForge\x9c" "net", 38));
-	Com_Printf("ezQuake %s\n", VersionStringColour());
+	Com_Printf(NEXTQUAKE_NAME " &c1e1%s&r\n", NEXTQUAKE_VERSION);
 	Com_Printf("\n");
 	Com_Printf(Host_PrintBars("&c1e1ezQuake Initialized&r", 38));
 	Com_Printf("\n");

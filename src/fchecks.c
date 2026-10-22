@@ -69,10 +69,9 @@ static void FChecks_VersionResponse (void)
 {
 	// {} required for color codes to render in QW chat
 	// orange for nextQuake, green for its version, platform color varies by OS, gray for renderer
-	// e.g. "nextQuake 0.1.0 (ezQuake 3.7.0-dev) Android 14:Vulkan"; the ezQuake base
-	// version stays in the text so servers/mods that look for it keep working
-	Cbuf_AddText(va("say {&cf80" NEXTQUAKE_NAME "&r &c0f0%s&r (ezQuake &c888%s&r) " QW_PLATFORM_COLOR "%s&r:&c888%s&r}\n",
-		NEXTQUAKE_VERSION, VersionString(), QW_PlatformDetail(), QW_RENDERER));
+	// e.g. "nextQuake 0.1.0 Android 14:Vulkan"
+	Cbuf_AddText(va("say {&cf80" NEXTQUAKE_NAME "&r &c0f0%s&r " QW_PLATFORM_COLOR "%s&r:&c888%s&r}\n",
+		NEXTQUAKE_VERSION, QW_PlatformDetail(), QW_RENDERER));
 }
 
 static char *FChecks_FServerResponse_Text(void)
