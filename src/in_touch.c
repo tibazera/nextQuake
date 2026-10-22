@@ -8,11 +8,15 @@ Menus/console/chat: d-pad, enter/back/keyboard buttons, and a tap moves the
 menu cursor and clicks.
 */
 
-#ifdef __ANDROID__
-
-#include <jni.h>
 #include <SDL.h>
 #include "quakedef.h"
+#include "in_touch.h"
+
+#ifdef EZ_TOUCH
+
+#ifdef __ANDROID__
+#include <jni.h>
+#endif
 #include "input.h"
 #include "keys.h"
 #include "menu.h"
@@ -115,6 +119,20 @@ void IN_TouchInit(void)
 	Cvar_Register(&in_touch_console_size);
 	SDL_DisableScreenSaver();   // keep the screen awake while playing
 	Cvar_ResetCurrentGroup();
+#ifndef __ANDROID__
+	// iOS ships the control art inside the app bundle; the engine loads it as loose files
+	for (int i = 0; i < P_COUNT; i++) {
+		char src[MAX_OSPATH], dst[MAX_OSPATH];
+		const char *name = pic_names[i] + strlen("gfx/touch/");
+
+		snprintf(dst, sizeof(dst), "%s/ezquake/gfx/touch/%s.png", com_basedir, name);
+		if (!SDL_GetPathInfo(dst, NULL)) {
+			snprintf(src, sizeof(src), "%stouch/%s.png", SDL_GetBasePath(), name);
+			SDL_CreateDirectory(va("%s/ezquake/gfx/touch", com_basedir));
+			SDL_CopyFile(src, dst);
+		}
+	}
+#endif
 }
 
 qbool IN_TouchActive(void)
@@ -249,6 +267,7 @@ static qbool ButtonRepeats(int b)
 // short "key click" vibration (SDLActivity.performHapticClick), also the menus' press feedback
 void IN_TouchHapticPulse(void)
 {
+#ifdef __ANDROID__
 	JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
 	jobject activity = (jobject)SDL_GetAndroidActivity();
 	jclass cls;
@@ -269,6 +288,7 @@ void IN_TouchHapticPulse(void)
 		(*env)->DeleteLocalRef(env, cls);
 	}
 	(*env)->DeleteLocalRef(env, activity);
+#endif // ponytail: no haptics on iOS yet, UIImpactFeedbackGenerator needs an Objective-C shim
 }
 
 static void Haptic(void)
@@ -699,4 +719,4 @@ void IN_TouchDraw(void)
 	}
 }
 
-#endif // __ANDROID__
+#endif // EZ_TOUCH

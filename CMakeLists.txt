@@ -1246,4 +1246,7 @@ if(EZQUAKE_IOS)
             MACOSX_BUNDLE_BUNDLE_VERSION                                    "${NEXTQUAKE_VERSION_STRING}"
             MACOSX_BUNDLE_SHORT_VERSION_STRING                              "${NEXTQUAKE_VERSION_STRING}"
     )
+    # on-screen control art, shared with the Android app; in_touch.c copies it to Documents
+    add_custom_command(TARGET ezquake POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/app/src/main/assets/touch" "$<TARGET_BUNDLE_CONTENT_DIR:ezquake>/touch")
 endif()

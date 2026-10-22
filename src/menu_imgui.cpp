@@ -25,7 +25,11 @@ See the GNU General Public License for more details.
 // they touch, so the engine's state caching isn't disturbed.
 
 #include <SDL3/SDL.h>
-#ifdef __ANDROID__
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+#if defined(__ANDROID__) || (defined(TARGET_OS_IOS) && TARGET_OS_IOS)
+#define EZ_TOUCH
 extern "C" void IN_TouchHapticPulse(void);
 #endif
 
@@ -196,7 +200,7 @@ void ApplyStyle(float scale)
 	c[ImGuiCol_ModalWindowDimBg]     = ImVec4(0, 0, 0, 0.60f);
 	c[ImGuiCol_TextSelectedBg]       = ImVec4(COLOR_ACCENT.x, COLOR_ACCENT.y, COLOR_ACCENT.z, 0.35f);
 
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 	// touch: finger-sized targets (mobile UI guidelines ask for ~48dp), invisible extra hit
 	// margin around every item, and a pressed state that is clearly visible
 	style.FramePadding = ImVec2(18, 14);
@@ -2089,7 +2093,7 @@ void TouchFeedback()
 	if (io.MouseClicked[0] && ImGui::GetCurrentContext()->HoveredId != 0) {
 		ripple.pos = io.MousePos;
 		ripple.start = ImGui::GetTime();
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 		IN_TouchHapticPulse();
 #endif
 	}

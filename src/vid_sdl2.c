@@ -929,7 +929,7 @@ static void keyb_textinputevent(const char* text)
 
 static void IN_UpdateTextInputState(void)
 {
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 	bool active = SDL_TextInputActive(sdl_window);
 	bool want = IN_TouchWantsTextInput();
 	// A Dear ImGui text field has focus: it needs TEXT_INPUT events even with a physical
@@ -1099,7 +1099,7 @@ static void HandleEvents(void)
 		case SDL_EVENT_WINDOW_FOCUS_LOST:
 			window_event(&event.window);
 			break;
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 		case SDL_APP_WILLENTERBACKGROUND:
 		case SDL_APP_DIDENTERBACKGROUND:
 			IN_TouchReleaseAll();
@@ -1127,7 +1127,7 @@ static void HandleEvents(void)
 #ifdef __ANDROID__
 			IN_AndroidDiagnosticPrintf("android input: key%s scan=%d sym=%d mod=%d repeat=%d mapped=%d", event.type == SDL_KEYDOWN ? "down" : "up", event.key.scancode, event.key.key, event.key.mod, event.key.repeat, IN_KeyboardEventToQuakeCode(&event.key));
 #endif
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 			if (!IN_TouchWantsTextInput()) {
 				IN_TouchPhysicalInput(true);
 			}
@@ -1141,7 +1141,7 @@ static void HandleEvents(void)
 			keyb_textinputevent(event.text.text);
 			break;
 		case SDL_MOUSEMOTION:
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 			if (event.motion.which != SDL_TOUCH_MOUSEID) {
 				IN_TouchPhysicalInput(false);
 			}
@@ -1168,7 +1168,7 @@ static void HandleEvents(void)
 			break;
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 			if (event.button.which != SDL_TOUCH_MOUSEID) {
 				IN_TouchPhysicalInput(false);
 			}
@@ -1193,7 +1193,7 @@ static void HandleEvents(void)
 				mouse_wheel_event(&event.wheel);
 			}
 			break;
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 		case SDL_EVENT_FINGER_DOWN:
 		case SDL_EVENT_FINGER_MOTION:
 		case SDL_EVENT_FINGER_UP:
@@ -1301,7 +1301,7 @@ static int VID_SDL_InitSubSystem(void)
 		}
 	}
 
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 	IN_UpdateTextInputState();
 #else
 	SDL_StartTextInput(sdl_window);
@@ -1317,13 +1317,13 @@ static void VID_SDL_SetHints(void)
 	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
 #endif
 
-#if defined(EZ_MACOS) || defined(__ANDROID__)
+#if defined(EZ_MACOS) || defined(EZ_TOUCH)
 #ifdef SDL_HINT_TOUCH_MOUSE_EVENTS
 	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
 #endif
 #endif
 
-#ifdef __ANDROID__
+#ifdef EZ_TOUCH
 #ifdef SDL_HINT_ENABLE_SCREEN_KEYBOARD
 	SDL_SetHintWithPriority(SDL_HINT_ENABLE_SCREEN_KEYBOARD, "0", SDL_HINT_OVERRIDE);
 #endif

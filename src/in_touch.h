@@ -9,7 +9,14 @@ unaffected.
 #ifndef EZQUAKE_IN_TOUCH_H
 #define EZQUAKE_IN_TOUCH_H
 
-#ifdef __ANDROID__
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+#if defined(__ANDROID__) || (defined(TARGET_OS_IOS) && TARGET_OS_IOS)
+#define EZ_TOUCH
+#endif
+
+#ifdef EZ_TOUCH
 
 void IN_TouchInit(void);
 void IN_TouchFrame(void);   // once per frame from the event loop
