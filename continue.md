@@ -1,3 +1,13 @@
+## Port iOS experimental (branch `ios`) — 2026-10-23
+
+Android e iOS são produtos separados: a versão Android (main, v0.1.1) é a estável; iOS é experimental e vive só na branch `ios`. Não fazer merge no main sem pedido de Tiago.
+
+- Build via CI `.github/workflows/ios.yml` (macos-15): job simulador (build, smoke test, download real dos dados) e job `device` (IPA sem assinatura, preset `ios-arm64`). Ambos passaram no run 39870052650.
+- Vulkan via MoltenVK v1.3.0 estático. No simulador os argument buffers do Metal são desligados por `VK_EXT_layer_settings` (`src/vk_instance.c`); o simulador não tem arrays de texturas, então o 3D fica preto lá — só validável em iPhone real.
+- `EZ_TOUCH` (in_touch.h) liga touch/IME para Android e iOS; JNI e resolução seguem só Android. Safe area (`VID_SafeAreaInsets`), haptics (`src/ios_haptic.m`), ícone (`ios/Assets.xcassets`), arte touch copiada do bundle para Documents.
+- Download no primeiro uso: `src/ios_gamedata.c` (libcurl + tela SDL), lista gerada no CMake a partir de `GameDataManifest.java` (essential), `cacert.pem` do curl.se empacotado (mbedtls não lê o trust store do iOS).
+- IPA + instruções em português (Sideloadly, Apple ID grátis, 7 dias) entregues em `%USERPROFILE%\Desktop\nextQuake-iOS-teste` para um amigo testar num iPhone 18. Aguardando retorno.
+- Pendências: resultado do teste no iPhone real; pacote HD opcional; checagem de versão (version.c) também usa curl sem CA no iOS; conta Apple Developer só se for publicar (TestFlight/App Store, conflito GPL).
 ## Release Android 0.1.0 — 2026-10-21
 
 - Identidade pública definida: nome `nextQuake`, application ID `org.nextquake.android`; namespace Java e pasta `Documents/ezQuake` preservados.
