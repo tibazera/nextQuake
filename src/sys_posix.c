@@ -473,7 +473,7 @@ int main(int argc, char **argv)
 	Android_PreflightDataFolder();
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__ANDROID__)
 	extern void InitSig(void);
 	InitSig();
 #endif

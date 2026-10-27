@@ -965,7 +965,8 @@ qbool VK_TextureReady(texture_ref texture)
 	}
 	return textureData[texture.index].image != VK_NULL_HANDLE &&
 		textureData[texture.index].imageView != VK_NULL_HANDLE &&
-		textureData[texture.index].descriptorSet != VK_NULL_HANDLE;
+		textureData[texture.index].descriptorSet != VK_NULL_HANDLE &&
+		textureData[texture.index].layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
 void VK_TextureInitialiseState(void)
@@ -1216,8 +1217,9 @@ void VK_TextureFlushPendingUploads(VkCommandBuffer commandBuffer, uint32_t frame
 		int mipCount = max(1, upload->mipCount);
 		int level;
 
-		if (!VK_TextureReady(upload->texture)) continue;
+		if (!VK_TextureReferenceInRange(upload->texture)) continue;
 		vktex = &textureData[upload->texture.index];
+		if (vktex->image == VK_NULL_HANDLE || vktex->imageView == VK_NULL_HANDLE || vktex->descriptorSet == VK_NULL_HANDLE) continue;
 		// Reads/updates vktex->layout instead of assuming SHADER_READ_ONLY_OPTIMAL,
 		// so freshly created textures (real layout UNDEFINED) queued here by
 		// VK_UploadTexture get a correct discard transition instead of a bogus
@@ -1265,10 +1267,13 @@ void VK_TextureReplaceSubImageRGBA(texture_ref texture, int offsetx, int offsety
 	void* mapped;
 	int row;
 
-	if (!VK_TextureReady(texture) || !buffer || width <= 0 || height <= 0) {
+	if (!VK_TextureReferenceInRange(texture) || !buffer || width <= 0 || height <= 0) {
 		return;
 	}
 	vktex = &textureData[texture.index];
+	if (vktex->image == VK_NULL_HANDLE || vktex->imageView == VK_NULL_HANDLE || vktex->descriptorSet == VK_NULL_HANDLE) {
+		return;
+	}
 	if (offsetx < 0 || offsety < 0 || offsetx + width > vktex->width || offsety + height > vktex->height) {
 		return;
 	}

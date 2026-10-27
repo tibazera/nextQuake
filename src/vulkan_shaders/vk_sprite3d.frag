@@ -6,8 +6,7 @@ layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec4 inColor;
 
 layout(push_constant) uniform PushConstants {
-	mat4 modelView;
-	mat4 projection;
+	mat4 mvp;
 	float alphaThreshold;
 	vec3 padding;
 } pushConstants;

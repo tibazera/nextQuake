@@ -120,7 +120,7 @@ Building for iOS requires macOS and Xcode, locally or remotely. No IPA is availa
 
 ## License and game data
 
-Credit goes to QW-Group, the ezQuake authors, and the contributors to the original code. The GNU GPL v2 license inherited from ezQuake is preserved in [LICENSE](LICENSE). Keep the original copyright notices and author attribution. Proprietary Quake game data (PAK/PK3 files and maps) is not included in this repository.
+Credit goes to QW-Group, the ezQuake authors, and the contributors to the original code. Special thanks to [galfthan](https://github.com/galfthan) for diagnosing and validating the Galaxy Tab S7 Vulkan and PK3 fixes shared through Discord. The GNU GPL v2 license inherited from ezQuake is preserved in [LICENSE](LICENSE). Keep the original copyright notices and author attribution. Proprietary Quake game data (PAK/PK3 files and maps) is not included in this repository.
 
 Third-party assets: the on-screen control bases are Kenney "Mobile Controls" (CC0), the touch icons are from [game-icons.net](https://game-icons.net) by Lorc and Delapouite (CC BY 3.0), and the menu font is Oxanium by Severin Meyer (SIL OFL 1.1). See `app/src/main/assets/touch/` and `src/fonts/` for the license texts.
 

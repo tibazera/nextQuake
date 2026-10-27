@@ -147,7 +147,7 @@ typedef struct {
 // VFS-FIXME Need to figure what this function is trying to do
 static void VFSZIP_MakeActive(vfszip_t *vfsz)
 {
-	int i;
+	int skipped;
 	char buffer[8192];	//must be power of two
 
 	if ((vfszip_t*)vfsz->parent->currentfile == vfsz)
@@ -164,9 +164,15 @@ static void VFSZIP_MakeActive(vfszip_t *vfsz)
 		Com_DPrintf("VFSZIP_MakeActive: Shockingly inefficient\n");
 
 		//now we need to seek up to where we had previously gotten to.
-		for (i = 0; i < vfsz->pos-sizeof(buffer); i++)
-			unzReadCurrentFile(vfsz->parent->handle, buffer, sizeof(buffer));
-		unzReadCurrentFile(vfsz->parent->handle, buffer, vfsz->pos - i);
+		for (skipped = 0; skipped < vfsz->pos; )
+		{
+			int chunk = min(vfsz->pos - skipped, (int)sizeof(buffer));
+			int read = unzReadCurrentFile(vfsz->parent->handle, buffer, chunk);
+			if (read <= 0)
+				break;
+			skipped += read;
+		}
+		vfsz->pos = skipped;
 	}
 
 	vfsz->parent->currentfile = (vfsfile_t*)vfsz;

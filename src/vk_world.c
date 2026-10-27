@@ -106,15 +106,9 @@ typedef struct vk_world_push_s {
 	// per-vertex baked texture-average color it otherwise falls back to for
 	// surfaces whose real texture just isn't ready yet on Vulkan.
 	float drawflatColor;
-	// vk_world_flat.vert/.frag end their matching GLSL struct with a trailing
-	// vec3, which the std430-style push-constant layout rules align to 16
-	// bytes -- bumping that shader's real compiled block to 140 bytes even
-	// though every *other* field here is a plain scalar/array with no such
-	// jump. Padded to 144 (next 16-byte multiple) so this one shared C
-	// struct covers all 5 world pipelines that reuse it; previously only 128
-	// bytes, which validation correctly flagged as undersized for world_flat.
-	float padding[4];
 } vk_world_push_t;
+
+typedef char vk_world_push_must_fit_vulkan_minimum[(sizeof(vk_world_push_t) <= 128) ? 1 : -1];
 
 // Must match the push_constant block in vk_world_normals.vert /
 // vk_world_normals.frag exactly (88 bytes, within the 128-byte minimum).

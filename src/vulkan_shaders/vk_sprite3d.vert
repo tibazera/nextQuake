@@ -5,8 +5,7 @@ layout(location = 1) in vec3 inTexCoord;
 layout(location = 2) in vec4 inColor;
 
 layout(push_constant) uniform PushConstants {
-	mat4 modelView;
-	mat4 projection;
+	mat4 mvp;
 	float alphaThreshold;
 	vec3 padding;
 } pushConstants;
@@ -16,7 +15,7 @@ layout(location = 1) out vec4 outColor;
 
 void main()
 {
-	vec4 clip = pushConstants.projection * pushConstants.modelView * vec4(inPosition, 1.0);
+	vec4 clip = pushConstants.mvp * vec4(inPosition, 1.0);
 
 	clip.y = -clip.y;
 	clip.z = clip.z * 0.5 + clip.w * 0.5;
