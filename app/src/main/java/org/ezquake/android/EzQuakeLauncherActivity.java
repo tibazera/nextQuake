@@ -108,7 +108,12 @@ public class EzQuakeLauncherActivity extends Activity {
         baseDir.mkdirs();
 
         if (GameDataInstaller.isEssentialDataPresent(baseDir)) {
-            checkHdTexturesPromptThenStartGame(baseDir);
+            List<GameDataManifest.Entry> missing = GameDataInstaller.missingRequiredFiles(baseDir);
+            if (missing.isEmpty()) {
+                checkHdTexturesPromptThenStartGame(baseDir);
+            } else {
+                startDownload(baseDir, missing);
+            }
             return;
         }
 
@@ -116,11 +121,14 @@ public class EzQuakeLauncherActivity extends Activity {
     }
 
     private void startEssentialDownload(File baseDir) {
+        startDownload(baseDir, GameDataManifest.essential());
+    }
+
+    private void startDownload(File baseDir, List<GameDataManifest.Entry> manifest) {
         setContentView(R.layout.activity_launcher_progress);
         downloadStatusText = findViewById(R.id.download_status_text);
         downloadProgressBar = findViewById(R.id.download_progress_bar);
 
-        List<GameDataManifest.Entry> manifest = GameDataManifest.essential();
         runManifestDownload(baseDir, manifest, new Runnable() {
             @Override
             public void run() {

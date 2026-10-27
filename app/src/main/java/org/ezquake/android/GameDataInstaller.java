@@ -35,13 +35,38 @@ public final class GameDataInstaller {
         void onFailed(String relativePath, Exception cause);
     }
 
+    // Files the engine cannot start without even when the player copied their own
+    // Quake data: ezQuake's own assets. Only these are filled in automatically, so a
+    // hand-copied install never gets extra archives (e.g. gpl_maps.pk3) mixed in.
+    private static final String[] REQUIRED_CLIENT_FILES = {
+            "ezquake/ezquake.pk3",
+    };
+
     public static boolean isEssentialDataPresent(File baseDir) {
         for (String candidate : BASE_DATA_CANDIDATES) {
-            if (new File(baseDir, candidate).isFile()) {
+            if (isNonEmptyFile(new File(baseDir, candidate))) {
                 return true;
             }
         }
         return false;
+    }
+
+    // Entries of the essential manifest for required client files missing from an
+    // otherwise usable install (empty when nothing is missing).
+    public static List<GameDataManifest.Entry> missingRequiredFiles(File baseDir) {
+        List<GameDataManifest.Entry> missing = new java.util.ArrayList<>();
+        for (GameDataManifest.Entry entry : GameDataManifest.essential()) {
+            for (String required : REQUIRED_CLIENT_FILES) {
+                if (entry.localPath.equals(required) && !isNonEmptyFile(new File(baseDir, required))) {
+                    missing.add(entry);
+                }
+            }
+        }
+        return missing;
+    }
+
+    private static boolean isNonEmptyFile(File file) {
+        return file.isFile() && file.length() > 0;
     }
 
     // True when every file of the manifest is already on disk (non-empty), so the
@@ -49,7 +74,7 @@ public final class GameDataInstaller {
     public static boolean allFilesPresent(File baseDir, List<GameDataManifest.Entry> manifest) {
         for (GameDataManifest.Entry entry : manifest) {
             File file = new File(baseDir, entry.localPath);
-            if (!file.isFile() || file.length() == 0) {
+            if (!isNonEmptyFile(file)) {
                 return false;
             }
         }
@@ -87,6 +112,11 @@ public final class GameDataInstaller {
             GameDataManifest.Entry entry = manifest.get(i);
             File finalFile = new File(baseDir, entry.localPath);
 
+            if (finalFile.isFile() && finalFile.length() == 0) {
+                // A zero-byte leftover (full disk, killed copy) is not a download.
+                //noinspection ResultOfMethodCallIgnored
+                finalFile.delete();
+            }
             if (finalFile.isFile()) {
                 // Already downloaded in a previous attempt -- skip, but
                 // still count its bytes so the progress bar reflects the
