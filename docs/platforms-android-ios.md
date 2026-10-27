@@ -96,7 +96,7 @@ deixar variável só usada num `#ifdef`. Sempre rodar
 - Android: mipmaps `nextquake_icon`, splash próprio.
 - iOS: `ios/Assets.xcassets/AppIcon` compilado no app; Info.plist gerado
   pelo CMake (landscape, compartilhamento de arquivos ligado, nome nextQuake).
-- Os dois se identificam como "nextQuake 0.1.1" (`VERSION`).
+- Os dois se identificam como "nextQuake 0.1.2" (`VERSION`).
 
 ## CI
 

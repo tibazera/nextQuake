@@ -1,3 +1,10 @@
+## Compatibilidade Android Adreno / PK3 — 2026-10-26
+
+- Correções locais, ainda sem commit, aplicadas igualmente em `main` e `ios`: seek de arquivos ZIP sem underflow, push constants Vulkan limitados a 128 bytes, composite alpha suportado pela surface, sinais fatais Android sem conversão para `exit(0)` e início padrão no menu.
+- O Android Debug da branch `ios` compilou com sucesso. Os oito arquivos compartilhados são idênticos ao worktree isolado de `main`; o build nesse worktree não iniciou o CMake porque submódulos não são materializados automaticamente nele.
+- Também corrigidos os dois erros restantes da validation layer: texturas só ficam disponíveis para desenho após chegarem a `SHADER_READ_ONLY_OPTIMAL`, e cada imagem da swapchain possui seu próprio semáforo render-finished.
+- Ainda falta validação visual e com validation layer no Xiaomi 14T Pro e no Galaxy Tab S7.
+
 ## Port iOS experimental (branch `ios`) — 2026-10-23
 
 Android e iOS são produtos separados: a versão Android (main, v0.1.1) é a estável; iOS é experimental e vive só na branch `ios`. Não fazer merge no main sem pedido de Tiago.

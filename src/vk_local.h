@@ -301,7 +301,7 @@ typedef struct vk_options_s {
 		VkCommandPool commandPool;
 		VkCommandBuffer* commandBuffers;
 		VkSemaphore imageAvailableSemaphores[VK_MAX_FRAMES_IN_FLIGHT];
-		VkSemaphore renderFinishedSemaphores[VK_MAX_FRAMES_IN_FLIGHT];
+		VkSemaphore* renderFinishedSemaphores;
 		VkFence inFlightFences[VK_MAX_FRAMES_IN_FLIGHT];
 		VkFence* imageInFlightFences;
 		uint32_t currentFrame;

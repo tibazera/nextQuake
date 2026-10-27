@@ -13,7 +13,9 @@ layout(push_constant) uniform PushConstants {
 	float surfaceType;
 	float useSkyTexture;
 	float fastTurb;
-	vec3 padding;
+	float detailEnabled;
+	float textureless;
+	float drawflatColor;
 } pushConstants;
 
 layout(location = 0) out vec3 outFlatColor;

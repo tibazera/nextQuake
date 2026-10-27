@@ -3,6 +3,40 @@
 Release versions follow `MAJOR.MINOR.PATCH` and live in the `VERSION` file.
 Only Android and iOS are release targets.
 
+## 0.1.2
+
+Compatibility and Vulkan correctness release based on testing by
+[galfthan](https://github.com/galfthan) on a Samsung Galaxy Tab S7 (SM-T870,
+Adreno 650). Thanks to galfthan for diagnosing the failures, validating the
+fixes and sending the patch through Discord.
+
+### Fixed
+
+- PK3 maps no longer hang during startup or server connection when Android
+  cannot create the temporary seek file. ZIP seeking now advances by the exact
+  requested byte count without unsigned underflow.
+- Vulkan world push constants now fit the guaranteed 128-byte device limit.
+- Vulkan 3D sprite push constants now use one CPU-combined MVP matrix and fit
+  in 96 bytes.
+- Swapchain creation selects a composite-alpha mode supported by the surface
+  instead of assuming opaque support.
+- Fatal Android signals are no longer converted into successful exits, allowing
+  Android to record useful crash diagnostics.
+- The distributed default configuration opens the menu instead of forcing the
+  console and software keyboard through `cl_onload "sb_refresh"`.
+- Newly created textures are not sampled until their upload reaches
+  `VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL`.
+- Render-finished semaphores are owned per swapchain image, preventing reuse
+  while the presentation engine may still be waiting on them.
+
+### Validation
+
+- Android Debug build passed.
+- Galaxy Tab S7 testing with the fixes loaded PK3 background maps including
+  dm2, dm4, aerowalk and schloss without hangs, black rendering or crashes.
+- Xiaomi 14T Pro regression test remains pending for this release.
+
+
 ## 0.1.1
 
 Bug-fix and polish release for the Android touch experience. Upgrades in place over 0.1.0

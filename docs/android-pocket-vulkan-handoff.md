@@ -35,6 +35,13 @@ A validacao Android registrada abaixo refere-se a base original, nao a um build 
 ---
 # Android Pocket Vulkan handoff
 
+## Atualização — 2026-10-26
+
+- Aplicadas localmente nas branches `main` e `ios` as correções do Galaxy Tab S7: seek correto em PK3, push constants de world/sprite dentro do mínimo Vulkan de 128 bytes, composite alpha negociado com a surface, crash signals preservados no Android e `cl_onload menu` na configuração distribuída.
+- Android Debug compilou na branch `ios`; os arquivos compartilhados foram comparados e são idênticos no worktree de `main`. Validação em aparelho ainda pendente.
+- Os dois avisos restantes da validation layer também foram corrigidos: texturas pendentes não são amostradas em layout indefinido e o semaphore render-finished agora pertence à imagem da swapchain.
+- Falta repetir a validação em aparelho; o Android Debug recompilou com sucesso.
+
 Branch: `feature/android-pocket-vulkan`
 
 ## Latest handoff — 2026-10-09, Codex

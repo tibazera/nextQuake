@@ -482,7 +482,7 @@ int main(int argc, char **argv)
 	IOS_EnsureGameData();
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) && !defined(__ANDROID__)
 	extern void InitSig(void);
 	InitSig();
 #endif
