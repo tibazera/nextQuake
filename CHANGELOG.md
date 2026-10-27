@@ -10,6 +10,13 @@ Compatibility and Vulkan correctness release based on testing by
 Adreno 650). Thanks to galfthan for diagnosing the failures, validating the
 fixes and sending the patch through Discord.
 
+### Download
+
+- APK: `nextQuake-0.1.2-android-arm64.apk`
+- Size: 17,813,439 bytes
+- SHA-256: `85A5FA91F2DE7E088E179D260641066B1012167218073A41769AACFD1E89E856`
+- Android application ID: `org.nextquake.android` (versionCode 102)
+
 ### Fixed
 
 - PK3 maps no longer hang during startup or server connection when Android
