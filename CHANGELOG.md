@@ -3,6 +3,37 @@
 Release versions follow `MAJOR.MINOR.PATCH` and live in the `VERSION` file.
 Only Android and iOS are release targets.
 
+## 0.1.3
+
+Launcher robustness and project infrastructure release. No engine, touch or
+Vulkan changes.
+
+### Download
+
+- APK: `nextQuake-0.1.3-android-arm64.apk` (signed build pending: produced by
+  `scripts/release.ps1` on the machine that holds the release key)
+- Android application ID: `org.nextquake.android` (versionCode 103)
+
+### Fixed
+
+- Zero-byte game data files (left by a full disk or an interrupted copy) no
+  longer count as an installed base; the launcher removes them and downloads
+  the file again.
+- Hand-copied installs missing `ezquake/ezquake.pk3` now get only that file
+  downloaded, without adding other archives to the player's own data.
+
+### Infrastructure
+
+- New GitHub Actions workflow `android.yml` builds the Debug APK (arm64,
+  Vulkan) on every push and pull request and publishes it as an artifact.
+- Inherited ezquake-source notes moved from `continue.md` and
+  `SESSION_NOTES.md` into `docs/`.
+
+### Validation
+
+- Android Debug build passed in CI (run 2 on the release branch).
+- Not tested on a device.
+
 ## 0.1.2
 
 Compatibility and Vulkan correctness release based on testing by
