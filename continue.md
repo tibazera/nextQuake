@@ -8,7 +8,8 @@ docs/continue-history-ezquake.md e docs/ezquake-origin-agent-history.md.
 - iOS vive em branch separada (`ios`); esta linha trata só Android e infraestrutura comum.
 - Novo workflow `.github/workflows/android.yml`: build `:app:assembleDebug` (arm64, Vulkan) em todo push/PR,
   com submódulos, JDK 17, NDK 28.2.13676358, glslang do apt e cache binário do vcpkg. APK sai como artefato.
-  Primeira execução ainda não observada; a compilação completa do vcpkg para arm64-android pode levar bastante tempo.
+  Validado: run 2 (81efeb7) passou em ~8 min. A run 1 falhou só no passo android-actions/setup-android, trocado pelo SDK do runner.
+- Escala de renderização já existe: cvar `vid_android_resolution` com seletor no menu (Auto = envelope 1920x1080).
 - Launcher: dados de base vazios (0 bytes) não contam mais como presentes, e um install copiado à mão sem
   `ezquake/ezquake.pk3` baixa só esse arquivo, sem misturar outros pacotes (ex.: gpl_maps.pk3).
   Não compilado nem testado em aparelho nesta sessão (ambiente sem Android SDK).
