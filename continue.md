@@ -16,7 +16,7 @@ docs/continue-history-ezquake.md e docs/ezquake-origin-agent-history.md.
 - `SESSION_NOTES.md` movido para docs/session-notes-vulkan-port.md.
 - Atenção: o próprio manifesto de download (`GameDataManifest.essential()`) baixa `id1/gpl_maps.pk3`, o arquivo
   que sobrepõe dm3/dm4/dm6 com BSPs de textura simples (ver handoff). Pela regra do handoff a correção é de
-  dados (PK3 limpo distribuído à parte), não de código; decisão pendente com Tiago.
+  dados (PK3 limpo distribuído à parte), não de código. Decisão de Tiago (2026-10-27): manter o download como está.
 
 ## Compatibilidade Android Adreno / PK3 — 2026-10-26
 
