@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -30,6 +33,7 @@
         android:required="false" />
 
     <application
+        android:appCategory="game"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/nextquake_icon"
         android:label="nextQuake"
@@ -37,6 +41,15 @@
         android:resizeableActivity="true"
         android:roundIcon="@mipmap/nextquake_icon"
         android:theme="@style/EzQuakeTheme">
+        <!-- Game Mode / Game Dashboard (Samsung Game Booster, Xiaomi Game Turbo). -->
+        <meta-data
+            android:name="android.game_mode_config"
+            android:resource="@xml/game_mode_config" />
+        <!-- Samsung DeX: keep the process alive when the display density changes. -->
+        <meta-data
+            android:name="com.samsung.android.keepalive.density"
+            android:value="true" />
+
         <activity
             android:name=".EzQuakeLauncherActivity"
             android:exported="true"
@@ -61,5 +74,14 @@
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".GameConnectionService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps an online multiplayer game connected to its server while minimized" />
+        </service>
     </application>
 </manifest>

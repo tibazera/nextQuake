@@ -89,37 +89,74 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
 
     // maxHeight 0 = default 1920x1080 envelope; otherwise the buffer height is
     // limited to maxHeight (aspect preserved, never upscaled) and the
-    // compositor scales it to the screen. Called at startup and, through JNI,
-    // when the engine's vid_android_render_height cvar changes.
-    public void applyRenderHeightCap(int maxHeight) {
-        try {
-            DisplayMetrics metrics = new DisplayMetrics();
-            mDisplay.getRealMetrics(metrics);
+    // compositor scales it to the screen. Called at startup, through JNI
+    // when the engine's vid_android_resolution cvar changes, and whenever the
+    // view itself is resized (Samsung DeX window <-> fullscreen, split screen).
+    private int mRenderMaxHeight = 0;
+    private int mAppliedRenderWidth = -1;
+    private int mAppliedRenderHeight = -1;
 
-            int deviceWidth = Math.max(metrics.widthPixels, metrics.heightPixels);
-            int deviceHeight = Math.min(metrics.widthPixels, metrics.heightPixels);
+    public void applyRenderHeightCap(int maxHeight) {
+        mRenderMaxHeight = maxHeight;
+        try {
+            // Size the buffer from the view's own laid-out size, not the
+            // display: in DeX or multi-window the view is not the full display,
+            // and a buffer with the display's aspect gets stretched.
+            int viewWidth = getWidth();
+            int viewHeight = getHeight();
+            if (viewWidth <= 0 || viewHeight <= 0) {
+                DisplayMetrics metrics = new DisplayMetrics();
+                mDisplay.getRealMetrics(metrics);
+                viewWidth = Math.max(metrics.widthPixels, metrics.heightPixels);
+                viewHeight = Math.min(metrics.widthPixels, metrics.heightPixels);
+            }
+
             float capWidth = MAX_RENDER_WIDTH;
             float capHeight = MAX_RENDER_HEIGHT;
+            if (viewHeight > viewWidth) {
+                capWidth = MAX_RENDER_HEIGHT;
+                capHeight = MAX_RENDER_WIDTH;
+            }
             if (maxHeight > 0) {
-                capHeight = maxHeight;
-                capWidth = maxHeight * (float)deviceWidth / deviceHeight;
+                int shortSide = Math.min(viewWidth, viewHeight);
+                capWidth = maxHeight * (float)viewWidth / shortSide;
+                capHeight = maxHeight * (float)viewHeight / shortSide;
             }
             float scale = Math.min(1.0f, Math.min(
-                    capWidth / deviceWidth,
-                    capHeight / deviceHeight));
+                    capWidth / viewWidth,
+                    capHeight / viewHeight));
 
-            int renderWidth = Math.max(1, Math.round(deviceWidth * scale));
-            int renderHeight = Math.max(1, Math.round(deviceHeight * scale));
-            if (renderWidth != deviceWidth || renderHeight != deviceHeight) {
+            int renderWidth = Math.max(1, Math.round(viewWidth * scale));
+            int renderHeight = Math.max(1, Math.round(viewHeight * scale));
+            if (renderWidth == mAppliedRenderWidth && renderHeight == mAppliedRenderHeight) {
+                return;
+            }
+            mAppliedRenderWidth = renderWidth;
+            mAppliedRenderHeight = renderHeight;
+            if (renderWidth != viewWidth || renderHeight != viewHeight) {
                 getHolder().setFixedSize(renderWidth, renderHeight);
                 Log.i("SDL", "Android render surface capped at " + renderWidth + "x" + renderHeight
-                        + " for display " + deviceWidth + "x" + deviceHeight);
-            } else if (maxHeight > 0) {
+                        + " for view " + viewWidth + "x" + viewHeight);
+            } else {
                 getHolder().setSizeFromLayout();
-                Log.i("SDL", "Android render surface uncapped at " + deviceWidth + "x" + deviceHeight);
+                Log.i("SDL", "Android render surface uncapped at " + viewWidth + "x" + viewHeight);
             }
         } catch (Exception exception) {
             Log.w("SDL", "Unable to configure Android render surface size", exception);
+        }
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (w > 0 && h > 0 && (w != oldw || h != oldh)) {
+            // Post: changing the buffer size from inside layout is not allowed.
+            post(new Runnable() {
+                @Override
+                public void run() {
+                    applyRenderHeightCap(mRenderMaxHeight);
+                }
+            });
         }
     }
 

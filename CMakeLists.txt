@@ -872,6 +872,7 @@ set(client
         ${SOURCE_DIR}/image.c
         ${SOURCE_DIR}/in_sdl2.c
         ${SOURCE_DIR}/in_touch.c
+        ${SOURCE_DIR}/android_crash.c
         ${SOURCE_DIR}/irc.c
         ${SOURCE_DIR}/irc_filter.c
         ${SOURCE_DIR}/keys.c

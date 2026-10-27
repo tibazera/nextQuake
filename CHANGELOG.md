@@ -5,8 +5,8 @@ Only Android and iOS are release targets.
 
 ## 0.1.3
 
-Launcher robustness and project infrastructure release. No engine, touch or
-Vulkan changes.
+Background connection, Samsung DeX fullscreen, crash log and launcher
+robustness release. No touch-control or Vulkan renderer changes.
 
 ### Download
 
@@ -14,8 +14,26 @@ Vulkan changes.
   `scripts/release.ps1` on the machine that holds the release key)
 - Android application ID: `org.nextquake.android` (versionCode 103)
 
+### Added
+
+- Minimizing the game no longer drops the server connection. The main loop
+  keeps running in the background (rendering stays paused), and a foreground
+  service with a low-priority notification stops Android from freezing the
+  process. A CPU wake lock covers screen-off for up to 30 minutes.
+- Crash log: fatal native signals and uncaught Java exceptions are appended to
+  `Documents/ezQuake/ezquake/crash.txt` (signal, fault address, backtrace with
+  library offsets). Android's own crash report still runs afterwards. Nothing
+  is sent anywhere.
+- The app is declared as a game (`appCategory="game"` plus a Game Mode
+  config), so the system game dashboards (Samsung Game Booster, Xiaomi Game
+  Turbo) recognize it.
+
 ### Fixed
 
+- Samsung DeX and split screen: the render buffer is now sized from the game
+  view itself instead of the physical display, and recomputed whenever the
+  window is resized or maximized. Before, a buffer with the wrong size or
+  aspect stayed in place after switching between window and fullscreen.
 - Zero-byte game data files (left by a full disk or an interrupted copy) no
   longer count as an installed base; the launcher removes them and downloads
   the file again.

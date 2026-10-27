@@ -24,6 +24,7 @@ public class EzQuakeActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        CrashLog.installJavaHandler(this);
         super.onCreate(savedInstanceState);
 
         // SDLActivity's SurfaceView paints black as soon as it's attached,
@@ -51,6 +52,28 @@ public class EzQuakeActivity extends SDLActivity {
         progressParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
         progressParams.bottomMargin = (int) (64 * getResources().getDisplayMetrics().density);
         ((ViewGroup) getContentView()).addView(startupProgressView, progressParams);
+    }
+
+    // Leaving the screen (home, app switch, screen off) keeps the process alive
+    // so the client stays connected; coming back ends the background service.
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (!isFinishing()) {
+            GameConnectionService.start(this);
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        GameConnectionService.stop(this);
+    }
+
+    @Override
+    protected void onDestroy() {
+        GameConnectionService.stop(this);
+        super.onDestroy();
     }
 
     // Called via JNI (GetMethodID "setRenderHeight" "(I)V") from vk_main.c when

@@ -471,6 +471,15 @@ int main(int argc, char **argv)
 #ifdef __ANDROID__
 	Android_EnforceDataArgs(&argc, &argv);
 	Android_PreflightDataFolder();
+	{
+		extern void Android_InstallCrashHandler(const char *basedir);
+		Android_InstallCrashHandler(ANDROID_EZQUAKE_BASEDIR);
+	}
+	// QuakeWorld is played online: keep the main loop (and the server
+	// connection) running while the app is in the background instead of
+	// SDL's default of blocking it on pause. Rendering is already skipped
+	// while Minimized; GameConnectionService keeps the process unfrozen.
+	setenv("SDL_ANDROID_BLOCK_ON_PAUSE", "0", 1);
 #endif
 
 #if defined(__linux__) && !defined(__ANDROID__)
