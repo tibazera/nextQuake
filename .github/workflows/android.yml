@@ -38,12 +38,11 @@ jobs:
         distribution: temurin
         java-version: "17"
 
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v3
-
+    # ubuntu-latest already ships the Android SDK at $ANDROID_HOME.
     - name: Install NDK
       run: |
-        sdkmanager --install "ndk;${NDK_VERSION}" "cmake;3.22.1"
+        yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+        "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" "cmake;3.22.1"
         echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
 
     - name: Restore vcpkg binary cache
